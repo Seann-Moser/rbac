@@ -71,6 +71,7 @@ jobs:
 
   # New job: Release (tagging)
   # New job: Release (tagging)
+  # New job: Release (tagging)
   release:
     # This job only runs if the 'build-and-test' job succeeds.
     needs: build-and-test
@@ -100,27 +101,36 @@ jobs:
           # Fetch all tags to ensure we have the complete history
           git fetch --tags --force
           
-          # Get the latest tag. If no tags exist, default to v0.0.0.
-          # We use `git describe --tags --abbrev=0` to get the latest annotated tag.
-          # `2>/dev/null` suppresses errors if no tags are found.
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          # Get the latest semantic version tag (vX.Y.Z format).
+          # This sorts tags semantically and picks the top one matching vX.Y.Z.
+          # If no such tag exists, it defaults to v0.0.0 to start from.
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          
+          # If no semantic tag is found, initialize with v0.0.0
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
           
           echo "Latest tag found: $latest_tag"
           
-          # Extract major, minor, and patch parts from the latest tag.
-          # `sed 's/^v//'` removes a leading 'v' if present.
-          # `tr '.' ' '` replaces dots with spaces for easy array parsing.
-          IFS=' ' read -r -a version_parts <<< "$(echo "$latest_tag" | sed 's/^v//')"
+          # Remove 'v' prefix for parsing
+          version_string=$(echo "$latest_tag" | sed 's/^v//')
           
-          # Assign parts, defaulting to 0 if a part is missing (e.g., from v0.0.0)
-          major=${version_parts[0]:-0}
-          minor=${version_parts[1]:-0}
-          patch=${version_parts[2]:-0}
+          # Extract major, minor, and patch parts using 'cut'.
+          # We explicitly take only the first three parts to ensure standard semantic versioning.
+          major=$(echo "$version_string" | cut -d'.' -f1)
+          minor=$(echo "$version_string" | cut -d'.' -f2)
+          patch=$(echo "$version_string" | cut -d'.' -f3)
+
+          # Ensure parts are treated as integers, defaulting to 0 if empty
+          major=${major:-0}
+          minor=${minor:-0}
+          patch=${patch:-0}
           
           # Increment the patch version.
           new_patch=$((patch + 1))
           
-          # Form the new tag, ensuring it starts with 'v'.
+          # Form the new tag with a 'v' prefix and standard X.Y.Z format.
           new_tag="v${major}.${minor}.${new_patch}"
           
           echo "Determined next tag: $new_tag"
