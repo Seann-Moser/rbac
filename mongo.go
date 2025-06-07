@@ -184,7 +184,10 @@ func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 		PermissionID primitive.ObjectID `bson:"permission_id"`
 	}
 	for cur.Next(ctx) {
-		cur.Decode(&rec)
+		err = cur.Decode(&rec)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, rec.PermissionID.Hex())
 	}
 	return out, nil

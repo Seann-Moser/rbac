@@ -91,7 +91,7 @@ func (f *FakeRepo) Remove(ctx context.Context, roleID, permID string) error {
 	return nil
 }
 func (f *FakeRepo) ListPermissions(ctx context.Context, roleID string) ([]string, error) {
-	out := []string{}
+	var out []string
 	if m, ok := f.rolePerms[roleID]; ok {
 		for pid := range m {
 			out = append(out, pid)
@@ -115,7 +115,7 @@ func (f *FakeRepo) RemoveUR(ctx context.Context, userID, roleID string) error {
 	return nil
 }
 func (f *FakeRepo) ListRoles(ctx context.Context, userID string) ([]string, error) {
-	out := []string{}
+	var out []string
 	if m, ok := f.userRoles[userID]; ok {
 		for rid := range m {
 			out = append(out, rid)
@@ -150,7 +150,7 @@ func TestPermissionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeletePermission failed: %v", err)
 	}
-	got, err = mgr.GetPermission(ctx, "perm1")
+	got, _ = mgr.GetPermission(ctx, "perm1")
 	if got != nil {
 		t.Errorf("expected nil after delete, got %v", got)
 	}
@@ -177,7 +177,7 @@ func TestRoleCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteRole failed: %v", err)
 	}
-	got, err = mgr.GetRole(ctx, "role1")
+	got, _ = mgr.GetRole(ctx, "role1")
 	if got != nil {
 		t.Errorf("expected nil after delete, got %v", got)
 	}
@@ -204,7 +204,7 @@ func TestUserCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteUser failed: %v", err)
 	}
-	got, err = mgr.GetUser(ctx, "user1")
+	got, _ = mgr.GetUser(ctx, "user1")
 	if got != nil {
 		t.Errorf("expected nil after delete, got %v", got)
 	}
@@ -231,7 +231,7 @@ func TestRolePermissionAndUserRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RemovePermissionFromRole failed: %v", err)
 	}
-	perms, err = mgr.ListPermissionsForRole(ctx, "role1")
+	perms, _ = mgr.ListPermissionsForRole(ctx, "role1")
 	if len(perms) != 0 {
 		t.Errorf("expected no perms after removal, got %v", perms)
 	}
@@ -252,7 +252,7 @@ func TestRolePermissionAndUserRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UnassignRoleFromUser failed: %v", err)
 	}
-	rls, err = mgr.ListRolesForUser(ctx, "user1")
+	rls, _ = mgr.ListRolesForUser(ctx, "user1")
 	if len(rls) != 0 {
 		t.Errorf("expected no roles after unassign, got %v", rls)
 	}
@@ -266,17 +266,17 @@ func TestCanWithWildcardAndExact(t *testing.T) {
 	// Create two permissions: wildcard action and explicit delete
 	pw := &Permission{ID: "permAll", Resource: "survey", Action: ActionAll}
 	pd := &Permission{ID: "permD", Resource: "survey", Action: ActionDelete}
-	mgr.CreatePermission(ctx, pw)
-	mgr.CreatePermission(ctx, pd)
+	_ = mgr.CreatePermission(ctx, pw)
+	_ = mgr.CreatePermission(ctx, pd)
 
 	// Create a role and assign both permissions
 	r := &Role{ID: "role1"}
-	fake.CreateRole(ctx, r)
-	mgr.AssignPermissionToRole(ctx, "role1", "permAll")
-	mgr.AssignPermissionToRole(ctx, "role1", "permD")
+	_ = fake.CreateRole(ctx, r)
+	_ = mgr.AssignPermissionToRole(ctx, "role1", "permAll")
+	_ = mgr.AssignPermissionToRole(ctx, "role1", "permD")
 
 	// Assign role to user
-	mgr.AssignRoleToUser(ctx, "user1", "role1")
+	_ = mgr.AssignRoleToUser(ctx, "user1", "role1")
 
 	// Can delete? should be true via wildcard or explicit
 	ok, err := mgr.Can(ctx, "user1", "survey", ActionDelete)
@@ -297,7 +297,7 @@ func TestCanWithWildcardAndExact(t *testing.T) {
 	}
 
 	// Remove wildcard action permission
-	mgr.RemovePermissionFromRole(ctx, "role1", "permAll")
+	_ = mgr.RemovePermissionFromRole(ctx, "role1", "permAll")
 
 	// Now Can update should be false (only explicit delete remains)
 	ok, err = mgr.Can(ctx, "user1", "survey", ActionUpdate)
@@ -316,13 +316,13 @@ func TestCanResourceWildcard(t *testing.T) {
 
 	// Create a permission with resource wildcard and specific action
 	pr := &Permission{ID: "permRes", Resource: "survey.*.test", Action: ActionCreate}
-	mgr.CreatePermission(ctx, pr)
+	_ = mgr.CreatePermission(ctx, pr)
 
 	// Create a role, user and assign
 	r := &Role{ID: "role1"}
-	fake.CreateRole(ctx, r)
-	mgr.AssignPermissionToRole(ctx, "role1", "permRes")
-	mgr.AssignRoleToUser(ctx, "user1", "role1")
+	_ = fake.CreateRole(ctx, r)
+	_ = mgr.AssignPermissionToRole(ctx, "role1", "permRes")
+	_ = mgr.AssignRoleToUser(ctx, "user1", "role1")
 
 	// Should match single segment wildcard
 	ok, err := mgr.Can(ctx, "user1", "survey.foo.test", ActionCreate)
@@ -353,13 +353,13 @@ func TestCanGlobalResourceWildcard(t *testing.T) {
 
 	// Permission with global resource wildcard and any action
 	pg := &Permission{ID: "permGlob", Resource: "*", Action: ActionAll}
-	mgr.CreatePermission(ctx, pg)
+	_ = mgr.CreatePermission(ctx, pg)
 
 	// Setup role/user
 	r := &Role{ID: "role1"}
-	fake.CreateRole(ctx, r)
-	mgr.AssignPermissionToRole(ctx, "role1", "permGlob")
-	mgr.AssignRoleToUser(ctx, "user1", "role1")
+	_ = fake.CreateRole(ctx, r)
+	_ = mgr.AssignPermissionToRole(ctx, "role1", "permGlob")
+	_ = mgr.AssignRoleToUser(ctx, "user1", "role1")
 
 	// Should match any resource/action
 	ok, err := mgr.Can(ctx, "user1", "any.resource.name", ActionUpdate)

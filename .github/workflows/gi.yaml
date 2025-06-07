@@ -51,12 +51,23 @@ jobs:
       # Step 5: (Optional) Run Go linting.
       # This step uses 'golangci-lint' for code quality checks.
       # You'll need to add a '.golangci.yml' config file in your repo for this to work effectively.
-      # Install golangci-lint
-      - name: Install golangci-lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.59.1 # Use a specific version
-      # Run the linter
+      # Install golangci-lint - Removed explicit version to let the installer pick the latest compatible version.
       - name: Run golangci-lint
-        run: $(go env GOPATH)/bin/golangci-lint run ./...
+        uses: golangci/golangci-lint-action@v6 # Use the latest stable version
+        with:
+          # Optional: specify a specific version of golangci-lint to use.
+          # If not specified, the action will try to determine the latest compatible version.
+          # version: v1.59.1 # Uncomment and change if you need a specific version
+
+          # Optional: specify the path to the .golangci.yml config file.
+          # config: path/to/.golangci.yml
+
+          # Optional: only run against modified files (faster for PRs).
+          # issues-exit-code: 1 # Default is 1
+
+          # Optional: run linter against all Go files in the repository.
+          # The default is to run on files changed in the pull request.
+          args: --verbose ./...
 
   # New job: Release (tagging)
   release:
