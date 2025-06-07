@@ -1,0 +1,105 @@
+# This workflow name will appear on GitHub in the "Actions" tab.
+name: Go CI
+
+# This specifies when the workflow should run.
+on:
+  # Triggers the workflow on push events to the 'main' branch.
+  push:
+    branches:
+      - main
+  # Triggers the workflow on pull request events to the 'main' branch.
+  pull_request:
+    branches:
+      - main
+
+# Define the jobs that will run as part of this workflow.
+jobs:
+  build-and-test:
+    # Specifies the runner environment for this job.
+    runs-on: ubuntu-latest
+
+    # Steps define a sequence of tasks that will be executed.
+    steps:
+      # Step 1: Checkout the repository code.
+      # This action checks out your repository under $GITHUB_WORKSPACE,
+      # so your workflow can access it.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up the Go environment.
+      # This action sets up a Go environment and caches Go modules.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Specify the Go version. You can change this to your desired version.
+          go-version: '1.22'
+          # Enable caching of Go modules to speed up subsequent runs.
+          cache: true
+
+      # Step 3: Download Go modules.
+      # This step ensures all dependencies are downloaded before building or testing.
+      - name: Download Go modules
+        run: go mod download
+
+      # Step 4: Run Go tests.
+      # This command runs all tests in your package.
+      # '-v' (verbose) shows detailed output for each test.
+      # './...' recursively finds and runs tests in all subdirectories.
+      - name: Run Go tests
+        run: go test -v ./...
+
+      # Step 5: (Optional) Run Go linting.
+      # This step uses 'golangci-lint' for code quality checks.
+      # You'll need to add a '.golangci.yml' config file in your repo for this to work effectively.
+      # Install golangci-lint
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.59.1 # Use a specific version
+      # Run the linter
+      - name: Run golangci-lint
+        run: $(go env GOPATH)/bin/golangci-lint run ./...
+
+  # New job: Release (tagging)
+  release:
+    # This job only runs if the 'build-and-test' job succeeds.
+    needs: build-and-test
+    # This job only runs on pushes to the 'main' branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      # Grant write permission to the GITHUB_TOKEN to create tags.
+      contents: write
+
+    steps:
+      - name: Checkout code
+        # Fetch all history and tags to correctly determine the next version.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Important: fetch all history for proper tag detection
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Get next semantic version
+        id: tag
+        # Uses a dedicated action to calculate the next semantic version.
+        # This will increment the patch version (e.g., v1.0.0 -> v1.0.1).
+        # For major/minor bumps, you would manually push a tag or use different logic.
+        uses: go-releaser/tag-action@v2
+        with:
+          # Token for authentication.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push tag
+        # This step only runs if a new version tag was generated.
+        if: steps.tag.outputs.tag != ''
+        run: |
+          # Configure Git user for the commit/tag.
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          # Create the new tag.
+          git tag ${{ steps.tag.outputs.tag }}
+          # Push the tag to the remote repository.
+          git push origin ${{ steps.tag.outputs.tag }}
+          echo "Created and pushed tag: ${{ steps.tag.outputs.tag }}"
