@@ -108,13 +108,12 @@ func main() {
     goarch: amd64
     pkg: github.com/Seann-Moser/rbac
     cpu: AMD Ryzen 7 3700X 8-Core Processor             
-    BenchmarkCan_NoRoles-16                         228800782                5.279 ns/op
-    BenchmarkCan_SingleRoleSinglePerm-16             3909104               306.9 ns/op
-    BenchmarkCan_ManyRolesManyPerms-16                199101              6338 ns/op
-    BenchmarkCan_ResourceWildcard-16                 2649585               446.6 ns/op
+    BenchmarkCan_NoRoles-16                          2158071               596.0 ns/op
+    BenchmarkCan_SingleRoleSinglePerm-16              953500              1084 ns/op
+    BenchmarkCan_ManyRolesManyPerms-16                169365              7284 ns/op
+    BenchmarkCan_ResourceWildcard-16                  894992              1210 ns/op
     PASS
-    ok      github.com/Seann-Moser/rbac     6.241s
-    
+    ok      github.com/Seann-Moser/rbac     5.322s
     ```
 ## Contributing
 
