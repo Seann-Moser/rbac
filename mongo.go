@@ -193,7 +193,7 @@ func (m *MongoStore) GetRoleByID(ctx context.Context, id string) (*Role, error) 
 func (m *MongoStore) CreateUser(ctx context.Context, u *User) error {
 	oid := primitive.NewObjectID()
 	u.ID = oid.Hex()
-	doc := bson.M{"_id": oid, "username": u.Username, "email": u.Email, "created_at": time.Now().Unix()}
+	doc := bson.M{"_id": oid, "username": u.Username, "email": u.Email, "created_at": time.Now().Unix(), "meta": u.Meta}
 	_, err := m.usersCol.InsertOne(ctx, doc)
 	return err
 }
@@ -215,13 +215,14 @@ func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) 
 	var doc struct {
 		Username  string
 		Email     string
+		Meta      map[string]interface{}
 		CreatedAt int64 `bson:"created_at"`
 	}
 	err = m.usersCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &User{ID: id, Username: doc.Username, Email: doc.Email, CreatedAt: doc.CreatedAt}, nil
+	return &User{ID: id, Username: doc.Username, Email: doc.Email, CreatedAt: doc.CreatedAt, Meta: doc.Meta}, nil
 }
 
 // --- RolePermissionRepo ---

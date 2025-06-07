@@ -50,6 +50,7 @@ type User struct {
 	ID        string
 	Username  string
 	Email     string
+	Meta      map[string]interface{}
 	CreatedAt int64
 }
 
