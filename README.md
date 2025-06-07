@@ -40,13 +40,16 @@ func main() {
   db := client.Database("mydb")
 
   // Create store and manager
-  mgr := rbac.NewMongoStoreManager(db)
-
+  mgr,err := rbac.NewMongoStoreManager(context.Background(),db)
+  if err != nil {
+    slog.Error("failed setting up manager","err",err)
+    return
+  }
   ctx := context.Background()
 
   // Create a permission and a role
   perm := &rbac.Permission{Resource: "survey.*", Action: rbac.ActionAll}
-  err := mgr.CreatePermission(ctx, perm)
+  err = mgr.CreatePermission(ctx, perm)
   if err != nil {
     slog.Error("failed creating permission","err",err)
 	return

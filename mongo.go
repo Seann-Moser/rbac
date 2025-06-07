@@ -4,6 +4,7 @@ package rbac
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -28,25 +29,91 @@ type MongoStore struct {
 	userRoleCol *mongo.Collection
 }
 
-func NewMongoStore(db *mongo.Database) *MongoStore {
-	return &MongoStore{
+// NewMongoStore creates the store and ensures all indexes exist.
+func NewMongoStore(ctx context.Context, db *mongo.Database) (*MongoStore, error) {
+	m := &MongoStore{
 		permsCol:    db.Collection("permissions"),
 		rolesCol:    db.Collection("roles"),
 		usersCol:    db.Collection("users"),
 		rolePermCol: db.Collection("role_permissions"),
 		userRoleCol: db.Collection("user_roles"),
 	}
+	if err := m.EnsureIndexes(ctx); err != nil {
+		return nil, fmt.Errorf("failed to create indexes: %w", err)
+	}
+	return m, nil
 }
-func NewMongoStoreManager(db *mongo.Database) *Manager {
-	m := NewMongoStore(db)
+
+// NewMongoStoreManager wires up the Manager, ensuring indexes too.
+func NewMongoStoreManager(ctx context.Context, db *mongo.Database) (*Manager, error) {
+	m, err := NewMongoStore(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	return &Manager{
 		Perms: m,
 		Roles: m,
 		Users: m,
 		RP:    m,
 		UR:    m,
+	}, nil
+}
+
+// EnsureIndexes makes sure each collection has the proper unique indexes.
+func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
+	// permissions: unique on (resource, action)
+	permIdx := mongo.IndexModel{
+		Keys:    bson.D{{Key: "resource", Value: 1}, {Key: "action", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.permsCol.Indexes().CreateOne(ctx, permIdx); err != nil {
+		return err
 	}
 
+	// roles: unique on name
+	roleIdx := mongo.IndexModel{
+		Keys:    bson.D{{Key: "name", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.rolesCol.Indexes().CreateOne(ctx, roleIdx); err != nil {
+		return err
+	}
+
+	// users: unique on username, unique on email
+	userIdx1 := mongo.IndexModel{
+		Keys:    bson.D{{Key: "username", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.usersCol.Indexes().CreateOne(ctx, userIdx1); err != nil {
+		return err
+	}
+	userIdx2 := mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.usersCol.Indexes().CreateOne(ctx, userIdx2); err != nil {
+		return err
+	}
+
+	// role_permissions: unique on (role_id, permission_id)
+	rpIdx := mongo.IndexModel{
+		Keys:    bson.D{{Key: "role_id", Value: 1}, {Key: "permission_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.rolePermCol.Indexes().CreateOne(ctx, rpIdx); err != nil {
+		return err
+	}
+
+	// user_roles: unique on (user_id, role_id)
+	urIdx := mongo.IndexModel{
+		Keys:    bson.D{{Key: "user_id", Value: 1}, {Key: "role_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, err := m.userRoleCol.Indexes().CreateOne(ctx, urIdx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // --- PermissionRepo ---
