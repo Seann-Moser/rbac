@@ -5,130 +5,11 @@ import (
 	"testing"
 )
 
-// FakeRepo is an in-memory implementation of all RBAC repository interfaces.
-// It stores permissions, roles, users, and their relationships in maps.
-// This allows unit testing of Manager logic without a real database.
-
-type FakeRepo struct {
-	perms     map[string]*Permission
-	roles     map[string]*Role
-	users     map[string]*User
-	rolePerms map[string]map[string]struct{} // roleID -> set of permIDs
-	userRoles map[string]map[string]struct{} // userID -> set of roleIDs
-}
-
-// NewFakeRepo initializes a new FakeRepo with empty data structures.
-func NewFakeRepo() *FakeRepo {
-	return &FakeRepo{
-		perms:     make(map[string]*Permission),
-		roles:     make(map[string]*Role),
-		users:     make(map[string]*User),
-		rolePerms: make(map[string]map[string]struct{}),
-		userRoles: make(map[string]map[string]struct{}),
-	}
-}
-
-// PermissionRepo implementation
-func (f *FakeRepo) CreatePermission(ctx context.Context, p *Permission) error {
-	f.perms[p.ID] = p
-	return nil
-}
-func (f *FakeRepo) DeletePermission(ctx context.Context, id string) error {
-	delete(f.perms, id)
-	return nil
-}
-func (f *FakeRepo) GetPermissionByID(ctx context.Context, id string) (*Permission, error) {
-	if p, ok := f.perms[id]; ok {
-		return p, nil
-	}
-	return nil, nil
-}
-
-// RoleRepo implementation
-func (f *FakeRepo) CreateRole(ctx context.Context, r *Role) error {
-	f.roles[r.ID] = r
-	return nil
-}
-func (f *FakeRepo) DeleteRole(ctx context.Context, id string) error {
-	delete(f.roles, id)
-	return nil
-}
-func (f *FakeRepo) GetRoleByID(ctx context.Context, id string) (*Role, error) {
-	if r, ok := f.roles[id]; ok {
-		return r, nil
-	}
-	return nil, nil
-}
-
-// UserRepo implementation
-func (f *FakeRepo) CreateUser(ctx context.Context, u *User) error {
-	f.users[u.ID] = u
-	return nil
-}
-func (f *FakeRepo) DeleteUser(ctx context.Context, id string) error {
-	delete(f.users, id)
-	return nil
-}
-func (f *FakeRepo) GetUserByID(ctx context.Context, id string) (*User, error) {
-	if u, ok := f.users[id]; ok {
-		return u, nil
-	}
-	return nil, nil
-}
-
-// RolePermissionRepo implementation
-func (f *FakeRepo) AddRP(ctx context.Context, roleID, permID string) error {
-	if f.rolePerms[roleID] == nil {
-		f.rolePerms[roleID] = make(map[string]struct{})
-	}
-	f.rolePerms[roleID][permID] = struct{}{}
-	return nil
-}
-func (f *FakeRepo) Remove(ctx context.Context, roleID, permID string) error {
-	if m, ok := f.rolePerms[roleID]; ok {
-		delete(m, permID)
-	}
-	return nil
-}
-func (f *FakeRepo) ListPermissions(ctx context.Context, roleID string) ([]string, error) {
-	var out []string
-	if m, ok := f.rolePerms[roleID]; ok {
-		for pid := range m {
-			out = append(out, pid)
-		}
-	}
-	return out, nil
-}
-
-// UserRoleRepo implementation
-func (f *FakeRepo) AddUR(ctx context.Context, userID, roleID string) error {
-	if f.userRoles[userID] == nil {
-		f.userRoles[userID] = make(map[string]struct{})
-	}
-	f.userRoles[userID][roleID] = struct{}{}
-	return nil
-}
-func (f *FakeRepo) RemoveUR(ctx context.Context, userID, roleID string) error {
-	if m, ok := f.userRoles[userID]; ok {
-		delete(m, roleID)
-	}
-	return nil
-}
-func (f *FakeRepo) ListRoles(ctx context.Context, userID string) ([]string, error) {
-	var out []string
-	if m, ok := f.userRoles[userID]; ok {
-		for rid := range m {
-			out = append(out, rid)
-		}
-	}
-	return out, nil
-}
-
 // --- Tests ---
 
 func TestPermissionCRUD(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
+	fake := NewMockRepo()
 	mgr := &Manager{Perms: fake}
 
 	p := &Permission{ID: "perm1", Resource: "survey", Action: ActionCreate}
@@ -158,7 +39,7 @@ func TestPermissionCRUD(t *testing.T) {
 
 func TestRoleCRUD(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
+	fake := NewMockRepo()
 	mgr := &Manager{Roles: fake}
 
 	r := &Role{ID: "role1", Name: "editor"}
@@ -185,7 +66,7 @@ func TestRoleCRUD(t *testing.T) {
 
 func TestUserCRUD(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
+	fake := NewMockRepo()
 	mgr := &Manager{Users: fake}
 
 	u := &User{ID: "user1", Username: "alice"}
@@ -212,7 +93,7 @@ func TestUserCRUD(t *testing.T) {
 
 func TestRolePermissionAndUserRole(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
+	fake := NewMockRepo()
 	mgr := &Manager{RP: fake, UR: fake}
 
 	// Assign permission to role
@@ -260,8 +141,8 @@ func TestRolePermissionAndUserRole(t *testing.T) {
 
 func TestCanWithWildcardAndExact(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 
 	// Create two permissions: wildcard action and explicit delete
 	pw := &Permission{ID: "permAll", Resource: "survey", Action: ActionAll}
@@ -311,8 +192,8 @@ func TestCanWithWildcardAndExact(t *testing.T) {
 
 func TestCanResourceWildcard(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 
 	// Create a permission with resource wildcard and specific action
 	pr := &Permission{ID: "permRes", Resource: "survey.*.test", Action: ActionCreate}
@@ -348,8 +229,8 @@ func TestCanResourceWildcard(t *testing.T) {
 
 func TestCanGlobalResourceWildcard(t *testing.T) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 
 	// Permission with global resource wildcard and any action
 	pg := &Permission{ID: "permGlob", Resource: "*", Action: ActionAll}

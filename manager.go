@@ -42,6 +42,29 @@ type Manager struct {
 	Users UserRepo
 	RP    RolePermissionRepo
 	UR    UserRoleRepo
+	UG    UserGroupRepo
+	GR    GroupRoleRepo
+}
+
+func (m *Manager) AssignRoleToGroup(ctx context.Context, groupID, roleID string) error {
+	start := time.Now()
+	err := m.GR.AddRoleToGroup(ctx, groupID, roleID)
+	m.record(ctx, start, "AssignRoleToGroup", err)
+	return err
+}
+
+func (m *Manager) UnassignRoleFromGroup(ctx context.Context, groupID, roleID string) error {
+	start := time.Now()
+	err := m.GR.RemoveRoleFromGroup(ctx, groupID, roleID)
+	m.record(ctx, start, "UnassignRoleFromGroup", err)
+	return err
+}
+
+func (m *Manager) ListRolesForGroup(ctx context.Context, groupID string) ([]string, error) {
+	start := time.Now()
+	roles, err := m.GR.ListRolesForGroup(ctx, groupID)
+	m.record(ctx, start, "ListRolesForGroup", err)
+	return roles, err
 }
 
 // CreateRole instruments the CreateRole call.
@@ -129,6 +152,27 @@ func (m *Manager) ListRolesForUser(ctx context.Context, userID string) ([]string
 	return roles, err
 }
 
+func (m *Manager) AddUserToGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+	start := time.Now()
+	err := m.UG.AddUserToGroup(ctx, groupID, ug)
+	m.record(ctx, start, "AddUserToGroup", err)
+	return err
+}
+
+func (m *Manager) RemoveUserFromGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+	start := time.Now()
+	err := m.UG.RemoveUserFromGroup(ctx, groupID, ug)
+	m.record(ctx, start, "RemoveUserFromGroup", err)
+	return err
+}
+
+func (m *Manager) GetUsersByGroupID(ctx context.Context, groupID string) ([]*UserGroup, error) {
+	start := time.Now()
+	list, err := m.UG.GetUsersByGroupID(ctx, groupID)
+	m.record(ctx, start, "GetUsersByGroupID", err)
+	return list, err
+}
+
 // CreatePermission instruments the underlying repo call.
 func (m *Manager) CreatePermission(ctx context.Context, p *Permission) error {
 	start := time.Now()
@@ -213,52 +257,83 @@ func (m *Manager) HasPermission(ctx context.Context, userID, permID string) (boo
 	return ok, err
 }
 
+func (m *Manager) GetGroupsByUserID(ctx context.Context, userID string) ([]*UserGroup, error) {
+	start := time.Now()
+	groups, err := m.UG.GetGroupsByUserID(ctx, userID)
+	m.record(ctx, start, "GetGroupsByUserID", err)
+	return groups, err
+}
+
+// manager.go (update)
 func (m *Manager) Can(ctx context.Context, userID, resource string, action Action) (bool, error) {
 	start := time.Now()
-	ok, err := func() (bool, error) {
-		roleIDs, err := m.UR.ListRoles(ctx, userID)
+
+	// 1) collect direct user roles
+	roles, err := m.UR.ListRoles(ctx, userID)
+	if err != nil {
+		m.record(ctx, start, "Can", err)
+		return false, err
+	}
+
+	// 2) collect groups this user belongs to
+	groups, err := m.UG.GetGroupsByUserID(ctx, userID)
+	if err != nil {
+		m.record(ctx, start, "Can", err)
+		return false, err
+	}
+	for _, ug := range groups {
+		grpRoles, err := m.GR.ListRolesForGroup(ctx, ug.GroupName)
 		if err != nil {
+			m.record(ctx, start, "Can", err)
 			return false, err
 		}
-		for _, roleID := range roleIDs {
-			permIDs, err := m.RP.ListPermissions(ctx, roleID)
+		roles = append(roles, grpRoles...)
+	}
+
+	// 3) dedupe roles (optional)
+
+	// 4) the old perm‐matching logic over all roles
+	var allow bool
+	for _, roleID := range roles {
+		permIDs, err := m.RP.ListPermissions(ctx, roleID)
+		if err != nil {
+			m.record(ctx, start, "Can", err)
+			return false, err
+		}
+		for _, pid := range permIDs {
+			perm, err := m.Perms.GetPermissionByID(ctx, pid)
 			if err != nil {
+				m.record(ctx, start, "Can", err)
 				return false, err
 			}
-			for _, pid := range permIDs {
-				perm, err := m.Perms.GetPermissionByID(ctx, pid)
-				if err != nil {
-					return false, err
-				}
-				if perm == nil {
-					continue
-				}
-				okRes, err := matchResource(perm.Resource, resource)
-				if err != nil {
-					return false, err
-				}
-				if !okRes {
-					continue
-				}
-				okAct, err := path.Match(string(perm.Action), string(action))
-				if err != nil {
-					return false, err
-				}
-				if okAct {
-					return true, nil
-				}
+			if perm == nil {
+				continue
+			}
+			okRes, err := matchResource(perm.Resource, resource)
+			if err != nil {
+				m.record(ctx, start, "Can", err)
+				return false, err
+			}
+			if !okRes {
+				continue
+			}
+			okAct, err := path.Match(string(perm.Action), string(action))
+			if err != nil {
+				m.record(ctx, start, "Can", err)
+				return false, err
+			}
+			if okAct {
+				allow = true
+				break
 			}
 		}
-		return false, nil
-	}()
-
-	attrs := []attribute.KeyValue{attribute.String("method", "Can")}
-	requestCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-	latencyRecorder.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
-	if err != nil {
-		errorCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+		if allow {
+			break
+		}
 	}
-	return ok, err
+
+	m.record(ctx, start, "Can", nil)
+	return allow, nil
 }
 
 // matchResource remains unchanged...

@@ -3,6 +3,7 @@ package rbac
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
@@ -19,24 +20,30 @@ var (
 	_ UserRepo           = (*MongoStore)(nil)
 	_ RolePermissionRepo = (*MongoStore)(nil)
 	_ UserRoleRepo       = (*MongoStore)(nil)
+	_ UserGroupRepo      = (*MongoStore)(nil)
+	_ GroupRoleRepo      = (*MongoStore)(nil)
 )
 
 type MongoStore struct {
-	permsCol    *mongo.Collection
-	rolesCol    *mongo.Collection
-	usersCol    *mongo.Collection
-	rolePermCol *mongo.Collection
-	userRoleCol *mongo.Collection
+	permsCol     *mongo.Collection
+	rolesCol     *mongo.Collection
+	usersCol     *mongo.Collection
+	rolePermCol  *mongo.Collection
+	userRoleCol  *mongo.Collection
+	userGroupCol *mongo.Collection
+	groupRoleCol *mongo.Collection
 }
 
 // NewMongoStore creates the store and ensures all indexes exist.
 func NewMongoStore(ctx context.Context, db *mongo.Database) (*MongoStore, error) {
 	m := &MongoStore{
-		permsCol:    db.Collection("permissions"),
-		rolesCol:    db.Collection("roles"),
-		usersCol:    db.Collection("users"),
-		rolePermCol: db.Collection("role_permissions"),
-		userRoleCol: db.Collection("user_roles"),
+		permsCol:     db.Collection("permissions"),
+		rolesCol:     db.Collection("roles"),
+		usersCol:     db.Collection("users"),
+		rolePermCol:  db.Collection("role_permissions"),
+		userRoleCol:  db.Collection("user_roles"),
+		userGroupCol: db.Collection("user_groups"),
+		groupRoleCol: db.Collection("group_roles"),
 	}
 	if err := m.EnsureIndexes(ctx); err != nil {
 		return nil, fmt.Errorf("failed to create indexes: %w", err)
@@ -56,7 +63,71 @@ func NewMongoStoreManager(ctx context.Context, db *mongo.Database) (*Manager, er
 		Users: m,
 		RP:    m,
 		UR:    m,
+		UG:    m,
+		GR:    m,
 	}, nil
+}
+
+func (m *MongoStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*UserGroup, error) {
+	filter := bson.M{"userid": userID}
+	cur, err := m.userGroupCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = cur.Close(ctx)
+	}()
+
+	var out []*UserGroup
+	for cur.Next(ctx) {
+		var ug UserGroup
+		if err := cur.Decode(&ug); err != nil {
+			return nil, err
+		}
+		out = append(out, &ug)
+	}
+	return out, cur.Err()
+}
+
+// AddRoleToGroup stores a (groupID,roleID) pair
+func (m *MongoStore) AddRoleToGroup(ctx context.Context, groupID, roleID string) error {
+	_, err := m.groupRoleCol.InsertOne(ctx, bson.M{
+		"groupname": groupID,
+		"roleid":    roleID,
+	})
+	return err
+}
+
+// RemoveRoleFromGroup deletes that pairing
+func (m *MongoStore) RemoveRoleFromGroup(ctx context.Context, groupID, roleID string) error {
+	_, err := m.groupRoleCol.DeleteOne(ctx, bson.M{
+		"groupname": groupID,
+		"roleid":    roleID,
+	})
+	return err
+}
+
+// ListRolesForGroup returns all roleIDs for a given group
+func (m *MongoStore) ListRolesForGroup(ctx context.Context, groupID string) ([]string, error) {
+	cur, err := m.groupRoleCol.Find(ctx, bson.M{"groupname": groupID})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = cur.Close(ctx)
+	}()
+
+	var out []string
+	for cur.Next(ctx) {
+		var doc struct {
+			RoleID string `bson:"roleid"`
+		}
+		if err := cur.Decode(&doc); err != nil {
+			return nil, err
+		}
+		out = append(out, doc.RoleID)
+	}
+	return out, cur.Err()
 }
 
 // EnsureIndexes makes sure each collection has the proper unique indexes.
@@ -114,6 +185,63 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *MongoStore) AddUserToGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+	// assign an object ID and timestamp
+	if groupID == "" {
+		ug.ID = primitive.NewObjectID().Hex()
+	} else {
+		ug.ID = groupID
+	}
+	if ug.UserID == "" {
+		return errors.New("user id is empty")
+	}
+	if ug.GroupName == "" {
+		return errors.New("group name is empty")
+	}
+	ug.CreatedAt = time.Now().Unix()
+	_, err := m.userGroupCol.InsertOne(ctx, ug)
+	return err
+}
+
+func (m *MongoStore) RemoveUserFromGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+	if groupID == "" {
+		return errors.New("group id is empty")
+	}
+	if ug.UserID == "" {
+		return errors.New("user id is empty")
+	}
+	filter := bson.M{
+		"id":     groupID,
+		"userid": ug.UserID,
+	}
+	_, err := m.userGroupCol.DeleteOne(ctx, filter)
+	return err
+}
+
+func (m *MongoStore) GetUsersByGroupID(ctx context.Context, groupID string) ([]*UserGroup, error) {
+	if groupID == "" {
+		return nil, errors.New("group id is empty")
+	}
+	filter := bson.M{"id": groupID}
+	cur, err := m.userGroupCol.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = cur.Close(ctx)
+	}()
+
+	var results []*UserGroup
+	for cur.Next(ctx) {
+		var ug UserGroup
+		if err := cur.Decode(&ug); err != nil {
+			return nil, err
+		}
+		results = append(results, &ug)
+	}
+	return results, cur.Err()
 }
 
 // --- PermissionRepo ---

@@ -9,8 +9,8 @@ import (
 // BenchmarkCan_NoRoles measures performance when the user has no roles.
 func BenchmarkCan_NoRoles(b *testing.B) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -21,8 +21,8 @@ func BenchmarkCan_NoRoles(b *testing.B) {
 // BenchmarkCan_SingleRoleSinglePerm measures performance with one role and one permission.
 func BenchmarkCan_SingleRoleSinglePerm(b *testing.B) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 	// setup one role, one perm
 	fake.perms["perm1"] = &Permission{ID: "perm1", Resource: "survey", Action: ActionRead}
 	fake.rolePerms["role1"] = map[string]struct{}{"perm1": {}}
@@ -37,8 +37,8 @@ func BenchmarkCan_SingleRoleSinglePerm(b *testing.B) {
 // BenchmarkCan_ManyRolesManyPerms measures performance with many roles and permissions.
 func BenchmarkCan_ManyRolesManyPerms(b *testing.B) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 	userID := "user1"
 	rolesCount := 100
 	permsPerRole := 50
@@ -67,8 +67,8 @@ func BenchmarkCan_ManyRolesManyPerms(b *testing.B) {
 // BenchmarkCan_ResourceWildcard measures performance of resource wildcard matching.
 func BenchmarkCan_ResourceWildcard(b *testing.B) {
 	ctx := context.Background()
-	fake := NewFakeRepo()
-	mgr := &Manager{Perms: fake, RP: fake, UR: fake}
+	fake := NewMockRepo()
+	mgr := NewMockRepoManager(fake)
 	// setup wildcard perm
 	fake.perms["permW"] = &Permission{ID: "permW", Resource: "survey.*.test", Action: ActionRead}
 	fake.rolePerms["role1"] = map[string]struct{}{"permW": {}}
