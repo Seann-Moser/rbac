@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // MockRepo is an in-memory implementation of all RBAC repository interfaces.
@@ -17,6 +18,16 @@ type MockRepo struct {
 	userGroups map[string]map[string]*UserGroup // userID -> groupID -> *UserGroup
 	groupUsers map[string]map[string]*UserGroup // groupID -> userID -> *UserGroup
 	groupRoles map[string]map[string]struct{}   // groupID -> set of roleIDs
+}
+
+func (f *MockRepo) GetRoleByName(ctx context.Context, name string) (*Role, error) {
+	//TODO implement me
+	for _, role := range f.roles {
+		if role.Name == name {
+			return role, nil
+		}
+	}
+	return nil, mongo.ErrNoDocuments
 }
 
 // NewMockRepo initializes a new MockRepo with empty data structures.

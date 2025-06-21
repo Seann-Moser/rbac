@@ -316,6 +316,20 @@ func (m *MongoStore) GetRoleByID(ctx context.Context, id string) (*Role, error) 
 	return &Role{ID: id, Name: doc.Name, Description: doc.Description, CreatedAt: doc.CreatedAt}, nil
 }
 
+func (m *MongoStore) GetRoleByName(ctx context.Context, name string) (*Role, error) {
+	var doc struct {
+		Id          string `bson:"_id"`
+		Name        string
+		Description string
+		CreatedAt   int64 `bson:"created_at"`
+	}
+	err := m.rolesCol.FindOne(ctx, bson.M{"name": name}).Decode(&doc)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &Role{ID: doc.Id, Name: doc.Name, Description: doc.Description, CreatedAt: doc.CreatedAt}, nil
+}
+
 // --- UserRepo ---
 
 func (m *MongoStore) CreateUser(ctx context.Context, u *User) error {

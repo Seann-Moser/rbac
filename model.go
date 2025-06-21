@@ -72,6 +72,7 @@ type RoleRepo interface {
 	CreateRole(ctx context.Context, r *Role) error
 	DeleteRole(ctx context.Context, id string) error
 	GetRoleByID(ctx context.Context, id string) (*Role, error)
+	GetRoleByName(ctx context.Context, name string) (*Role, error)
 }
 
 type UserRepo interface {
