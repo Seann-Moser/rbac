@@ -56,13 +56,14 @@ func NewMockRepo() *MockRepo {
 
 func NewMockRepoManager(m *MockRepo) *Manager {
 	return &Manager{
-		Perms: m,
-		Roles: m,
-		Users: m,
-		RP:    m,
-		UR:    m,
-		UG:    m,
-		GR:    m,
+		Perms:           m,
+		Roles:           m,
+		Users:           m,
+		RP:              m,
+		UR:              m,
+		UG:              m,
+		GR:              m,
+		DefaultRoleName: "default",
 	}
 }
 

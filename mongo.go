@@ -76,14 +76,24 @@ func NewMongoStoreManager(ctx context.Context, db *mongo.Database) (*Manager, er
 	if err != nil {
 		return nil, err
 	}
+
+	defaultRole, _ := m.GetRoleByName(ctx, "default")
+	if defaultRole == nil {
+		defaultRole = &Role{Name: "default"}
+		err = m.CreateRole(ctx, defaultRole)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &Manager{
-		Perms: m,
-		Roles: m,
-		Users: m,
-		RP:    m,
-		UR:    m,
-		UG:    m,
-		GR:    m,
+		Perms:           m,
+		Roles:           m,
+		Users:           m,
+		RP:              m,
+		UR:              m,
+		UG:              m,
+		GR:              m,
+		DefaultRoleName: "default",
 	}, nil
 }
 
@@ -459,6 +469,10 @@ func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, er
 			return nil, fmt.Errorf("failed to decode role ID")
 		}
 		out = append(out, rec.RoleID.Hex())
+	}
+	r, _ := m.GetRoleByName(ctx, "default")
+	if r != nil {
+		out = append(out, r.ID)
 	}
 	return out, nil
 }

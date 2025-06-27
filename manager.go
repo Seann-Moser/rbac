@@ -37,13 +37,14 @@ func init() {
 }
 
 type Manager struct {
-	Perms PermissionRepo
-	Roles RoleRepo
-	Users UserRepo
-	RP    RolePermissionRepo
-	UR    UserRoleRepo
-	UG    UserGroupRepo
-	GR    GroupRoleRepo
+	Perms           PermissionRepo
+	Roles           RoleRepo
+	Users           UserRepo
+	RP              RolePermissionRepo
+	UR              UserRoleRepo
+	UG              UserGroupRepo
+	GR              GroupRoleRepo
+	DefaultRoleName string
 }
 
 func (m *Manager) AssignRoleToGroup(ctx context.Context, groupID, roleID string) error {
