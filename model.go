@@ -66,6 +66,7 @@ type PermissionRepo interface {
 	CreatePermission(ctx context.Context, p *Permission) error
 	DeletePermission(ctx context.Context, id string) error
 	GetPermissionByID(ctx context.Context, id string) (*Permission, error)
+	GetPermissionByResource(ctx context.Context, resource string, action Action) (*Permission, error)
 }
 
 type RoleRepo interface {
@@ -79,6 +80,7 @@ type UserRepo interface {
 	CreateUser(ctx context.Context, u *User) error
 	DeleteUser(ctx context.Context, id string) error
 	GetUserByID(ctx context.Context, id string) (*User, error)
+	GetUserByMeta(ctx context.Context, meta map[string]interface{}) (*User, error)
 }
 
 type UserGroupRepo interface {

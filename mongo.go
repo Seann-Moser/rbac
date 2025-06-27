@@ -34,6 +34,25 @@ type MongoStore struct {
 	groupRoleCol *mongo.Collection
 }
 
+func (m *MongoStore) GetUserByMeta(ctx context.Context, meta map[string]interface{}) (*User, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MongoStore) GetPermissionByResource(ctx context.Context, resource string, action Action) (*Permission, error) {
+	var doc struct {
+		Id        primitive.ObjectID `bson:"_id"`
+		Resource  string
+		Action    Action
+		CreatedAt int64 `bson:"created_at"`
+	}
+	err := m.permsCol.FindOne(ctx, bson.M{"resource": resource, "action": string(action)}).Decode(&doc)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &Permission{ID: doc.Id.Hex(), Resource: doc.Resource, Action: doc.Action, CreatedAt: doc.CreatedAt}, nil
+}
+
 // NewMongoStore creates the store and ensures all indexes exist.
 func NewMongoStore(ctx context.Context, db *mongo.Database) (*MongoStore, error) {
 	m := &MongoStore{
@@ -247,8 +266,15 @@ func (m *MongoStore) GetUsersByGroupID(ctx context.Context, groupID string) ([]*
 // --- PermissionRepo ---
 
 func (m *MongoStore) CreatePermission(ctx context.Context, p *Permission) error {
+	tmp, _ := m.GetPermissionByResource(ctx, p.Resource, p.Action)
+	if tmp != nil {
+		p.ID = tmp.ID
+		p.CreatedAt = tmp.CreatedAt
+		return nil
+	}
 	oid := primitive.NewObjectID()
 	p.ID = oid.Hex()
+
 	doc := bson.M{"_id": oid, "resource": p.Resource, "action": p.Action, "created_at": time.Now().Unix()}
 	_, err := m.permsCol.InsertOne(ctx, doc)
 	return err
@@ -366,8 +392,6 @@ func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) 
 	}
 	return &User{ID: id, Username: doc.Username, Email: doc.Email, CreatedAt: doc.CreatedAt, Meta: doc.Meta}, nil
 }
-
-// --- RolePermissionRepo ---
 
 func (m *MongoStore) AddRP(ctx context.Context, roleID, permID string) error {
 	rOID, _ := primitive.ObjectIDFromHex(roleID)

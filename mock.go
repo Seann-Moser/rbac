@@ -20,6 +20,16 @@ type MockRepo struct {
 	groupRoles map[string]map[string]struct{}   // groupID -> set of roleIDs
 }
 
+func (f *MockRepo) GetPermissionByResource(ctx context.Context, resource string, action Action) (*Permission, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f *MockRepo) GetUserByMeta(ctx context.Context, meta map[string]interface{}) (*User, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (f *MockRepo) GetRoleByName(ctx context.Context, name string) (*Role, error) {
 	//TODO implement me
 	for _, role := range f.roles {
