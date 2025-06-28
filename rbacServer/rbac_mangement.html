@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBAC Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .section-title {
+            @apply text-2xl font-bold mb-4 text-gray-800;
+        }
+        .card {
+            @apply bg-white p-6 rounded-lg shadow-md mb-6;
+        }
+        .input-field {
+            @apply w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500;
+        }
+        .btn {
+            @apply px-4 py-2 rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition ease-in-out duration-150;
+        }
+        .btn-primary {
+            @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+        }
+        .btn-secondary {
+            @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400;
+        }
+        .btn-danger {
+            @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+        }
+        .table-auto {
+            @apply w-full text-left table-auto;
+        }
+        .table-auto th, .table-auto td {
+            @apply px-4 py-2 border-b border-gray-200;
+        }
+        .message-box {
+            @apply p-3 mt-4 rounded-md text-sm;
+        }
+        .message-success {
+            @apply bg-green-100 text-green-700;
+        }
+        .message-error {
+            @apply bg-red-100 text-red-700;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+<div class="container bg-white rounded-lg shadow-xl p-8">
+    <h1 class="text-4xl font-extrabold text-center mb-10 text-gray-900">RBAC Manager Web Interface</h1>
+
+    <!-- Loading Indicator -->
+    <div id="loading-spinner" class="hidden fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-24 w-24 border-b-4 border-blue-500"></div>
+    </div>
+
+    <!-- Global Message Box -->
+    <div id="global-message" class="message-box hidden"></div>
+
+    <!-- Users Section -->
+    <div class="card">
+        <h2 class="section-title">Users</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Create User Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Create User</h3>
+                <form id="create-user-form" class="space-y-3">
+                    <input type="text" id="create-user-id" placeholder="User ID" class="input-field" required>
+                    <input type="text" id="create-user-name" placeholder="User Name" class="input-field" required>
+                    <button type="submit" class="btn btn-primary w-full">Create User</button>
+                </form>
+            </div>
+            <!-- Delete User Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Delete User</h3>
+                <form id="delete-user-form" class="space-y-3">
+                    <input type="text" id="delete-user-id" placeholder="User ID" class="input-field" required>
+                    <button type="submit" class="btn btn-danger w-full">Delete User</button>
+                </form>
+            </div>
+            <!-- Get User Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Get User</h3>
+                <form id="get-user-form" class="space-y-3">
+                    <input type="text" id="get-user-id" placeholder="User ID" class="input-field" required>
+                    <button type="submit" class="btn btn-secondary w-full">Get User</button>
+                </form>
+                <div id="get-user-result" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <!-- List Users -->
+        <h3 class="font-semibold text-lg mb-3 text-gray-700">All Users</h3>
+        <button id="list-users-btn" class="btn btn-secondary mb-4">Refresh Users</button>
+        <div class="overflow-x-auto rounded-md shadow">
+            <table class="table-auto">
+                <thead>
+                <tr class="bg-gray-200">
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">Name</th>
+                </tr>
+                </thead>
+                <tbody id="users-table-body">
+                <!-- User rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Roles Section -->
+    <div class="card">
+        <h2 class="section-title">Roles</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Create Role Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Create Role</h3>
+                <form id="create-role-form" class="space-y-3">
+                    <input type="text" id="create-role-id" placeholder="Role ID" class="input-field" required>
+                    <input type="text" id="create-role-name" placeholder="Role Name" class="input-field" required>
+                    <button type="submit" class="btn btn-primary w-full">Create Role</button>
+                </form>
+            </div>
+            <!-- Delete Role Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Delete Role</h3>
+                <form id="delete-role-form" class="space-y-3">
+                    <input type="text" id="delete-role-id" placeholder="Role ID" class="input-field" required>
+                    <button type="submit" class="btn btn-danger w-full">Delete Role</button>
+                </form>
+            </div>
+            <!-- Get Role Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Get Role</h3>
+                <form id="get-role-form" class="space-y-3">
+                    <input type="text" id="get-role-id" placeholder="Role ID" class="input-field" required>
+                    <button type="submit" class="btn btn-secondary w-full">Get Role</button>
+                </form>
+                <div id="get-role-result" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <!-- List Roles -->
+        <h3 class="font-semibold text-lg mb-3 text-gray-700">All Roles</h3>
+        <button id="list-roles-btn" class="btn btn-secondary mb-4">Refresh Roles</button>
+        <div class="overflow-x-auto rounded-md shadow">
+            <table class="table-auto">
+                <thead>
+                <tr class="bg-gray-200">
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">Name</th>
+                </tr>
+                </thead>
+                <tbody id="roles-table-body">
+                <!-- Role rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Permissions Section -->
+    <div class="card">
+        <h2 class="section-title">Permissions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Create Permission Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Create Permission</h3>
+                <form id="create-permission-form" class="space-y-3">
+                    <input type="text" id="create-permission-id" placeholder="Permission ID" class="input-field" required>
+                    <input type="text" id="create-permission-name" placeholder="Permission Name" class="input-field" required>
+                    <input type="text" id="create-permission-resource" placeholder="Resource (e.g., /docs/**)" class="input-field" required>
+                    <input type="text" id="create-permission-action" placeholder="Action (e.g., read, write)" class="input-field" required>
+                    <button type="submit" class="btn btn-primary w-full">Create Permission</button>
+                </form>
+            </div>
+            <!-- Delete Permission Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Delete Permission</h3>
+                <form id="delete-permission-form" class="space-y-3">
+                    <input type="text" id="delete-permission-id" placeholder="Permission ID" class="input-field" required>
+                    <button type="submit" class="btn btn-danger w-full">Delete Permission</button>
+                </form>
+            </div>
+            <!-- Get Permission Form -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Get Permission</h3>
+                <form id="get-permission-form" class="space-y-3">
+                    <input type="text" id="get-permission-id" placeholder="Permission ID" class="input-field" required>
+                    <button type="submit" class="btn btn-secondary w-full">Get Permission</button>
+                </form>
+                <div id="get-permission-result" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <!-- List Permissions -->
+        <h3 class="font-semibold text-lg mb-3 text-gray-700">All Permissions</h3>
+        <button id="list-permissions-btn" class="btn btn-secondary mb-4">Refresh Permissions</button>
+        <div class="overflow-x-auto rounded-md shadow">
+            <table class="table-auto">
+                <thead>
+                <tr class="bg-gray-200">
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">Name</th>
+                    <th class="px-4 py-2">Resource</th>
+                    <th class="px-4 py-2">Action</th>
+                </tr>
+                </thead>
+                <tbody id="permissions-table-body">
+                <!-- Permission rows will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Relationships Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- User-Role Management -->
+        <div class="card">
+            <h2 class="section-title">User-Role Management</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Assign Role to User -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Assign Role to User</h3>
+                    <form id="assign-role-to-user-form" class="space-y-3">
+                        <input type="text" id="assign-user-id-ur" placeholder="User ID" class="input-field" required>
+                        <input type="text" id="assign-role-id-ur" placeholder="Role ID" class="input-field" required>
+                        <button type="submit" class="btn btn-primary w-full">Assign Role</button>
+                    </form>
+                </div>
+                <!-- Unassign Role from User -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Unassign Role from User</h3>
+                    <form id="unassign-role-from-user-form" class="space-y-3">
+                        <input type="text" id="unassign-user-id-ur" placeholder="User ID" class="input-field" required>
+                        <input type="text" id="unassign-role-id-ur" placeholder="Role ID" class="input-field" required>
+                        <button type="submit" class="btn btn-danger w-full">Unassign Role</button>
+                    </form>
+                </div>
+                <!-- List Roles for User -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner col-span-full">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">List Roles for User</h3>
+                    <form id="list-roles-for-user-form" class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="list-roles-user-id" placeholder="User ID" class="input-field flex-grow" required>
+                        <button type="submit" class="btn btn-secondary">List Roles</button>
+                    </form>
+                    <div id="list-roles-for-user-result" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Role-Permission Management -->
+        <div class="card">
+            <h2 class="section-title">Role-Permission Management</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Assign Permission to Role -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Assign Permission to Role</h3>
+                    <form id="assign-permission-to-role-form" class="space-y-3">
+                        <input type="text" id="assign-role-id-rp" placeholder="Role ID" class="input-field" required>
+                        <input type="text" id="assign-perm-id-rp" placeholder="Permission ID" class="input-field" required>
+                        <button type="submit" class="btn btn-primary w-full">Assign Permission</button>
+                    </form>
+                </div>
+                <!-- Remove Permission from Role -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Remove Permission from Role</h3>
+                    <form id="remove-permission-from-role-form" class="space-y-3">
+                        <input type="text" id="remove-role-id-rp" placeholder="Role ID" class="input-field" required>
+                        <input type="text" id="remove-perm-id-rp" placeholder="Permission ID" class="input-field" required>
+                        <button type="submit" class="btn btn-danger w-full">Remove Permission</button>
+                    </form>
+                </div>
+                <!-- List Permissions for Role -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner col-span-full">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">List Permissions for Role</h3>
+                    <form id="list-permissions-for-role-form" class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="list-perms-role-id" placeholder="Role ID" class="input-field flex-grow" required>
+                        <button type="submit" class="btn btn-secondary">List Permissions</button>
+                    </form>
+                    <div id="list-permissions-for-role-result" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User-Group Management -->
+        <div class="card">
+            <h2 class="section-title">User-Group Management</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Add User to Group -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Add User to Group</h3>
+                    <form id="add-user-to-group-form" class="space-y-3">
+                        <input type="text" id="add-ug-group-id" placeholder="Group ID" class="input-field" required>
+                        <input type="text" id="add-ug-user-id" placeholder="User ID" class="input-field" required>
+                        <input type="text" id="add-ug-group-name" placeholder="Group Name (e.g., admin_team)" class="input-field" required>
+                        <button type="submit" class="btn btn-primary w-full">Add User</button>
+                    </form>
+                </div>
+                <!-- Remove User from Group -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Remove User from Group</h3>
+                    <form id="remove-user-from-group-form" class="space-y-3">
+                        <input type="text" id="remove-ug-group-id" placeholder="Group ID" class="input-field" required>
+                        <input type="text" id="remove-ug-user-id" placeholder="User ID" class="input-field" required>
+                        <input type="text" id="remove-ug-group-name" placeholder="Group Name (e.g., admin_team)" class="input-field" required>
+                        <button type="submit" class="btn btn-danger w-full">Remove User</button>
+                    </form>
+                </div>
+                <!-- List Users by Group ID -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner col-span-full">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">List Users by Group</h3>
+                    <form id="list-users-by-group-form" class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="list-ug-group-id" placeholder="Group ID" class="input-field flex-grow" required>
+                        <button type="submit" class="btn btn-secondary">List Users</button>
+                    </form>
+                    <div id="list-users-by-group-result" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+                <!-- List Groups by User ID -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner col-span-full">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">List Groups for User</h3>
+                    <form id="list-groups-by-user-form" class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="list-gru-user-id" placeholder="User ID" class="input-field flex-grow" required>
+                        <button type="submit" class="btn btn-secondary">List Groups</button>
+                    </form>
+                    <div id="list-groups-by-user-result" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Group-Role Management -->
+        <div class="card">
+            <h2 class="section-title">Group-Role Management</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Assign Role to Group -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Assign Role to Group</h3>
+                    <form id="assign-role-to-group-form" class="space-y-3">
+                        <input type="text" id="assign-gr-group-id" placeholder="Group ID" class="input-field" required>
+                        <input type="text" id="assign-gr-role-id" placeholder="Role ID" class="input-field" required>
+                        <button type="submit" class="btn btn-primary w-full">Assign Role</button>
+                    </form>
+                </div>
+                <!-- Unassign Role from Group -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">Unassign Role from Group</h3>
+                    <form id="unassign-role-from-group-form" class="space-y-3">
+                        <input type="text" id="unassign-gr-group-id" placeholder="Group ID" class="input-field" required>
+                        <input type="text" id="unassign-gr-role-id" placeholder="Role ID" class="input-field" required>
+                        <button type="submit" class="btn btn-danger w-full">Unassign Role</button>
+                    </form>
+                </div>
+                <!-- List Roles for Group -->
+                <div class="bg-gray-50 p-4 rounded-md shadow-inner col-span-full">
+                    <h3 class="font-semibold text-lg mb-3 text-gray-700">List Roles for Group</h3>
+                    <form id="list-roles-for-group-form" class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="list-gr-group-id" placeholder="Group ID" class="input-field flex-grow" required>
+                        <button type="submit" class="btn btn-secondary">List Roles</button>
+                    </form>
+                    <div id="list-roles-for-group-result" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authorization Checks Section -->
+    <div class="card">
+        <h2 class="section-title">Authorization Checks</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Has Permission Check -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Has Permission?</h3>
+                <form id="has-permission-form" class="space-y-3">
+                    <input type="text" id="has-perm-user-id" placeholder="User ID" class="input-field" required>
+                    <input type="text" id="has-perm-perm-id" placeholder="Permission ID" class="input-field" required>
+                    <button type="submit" class="btn btn-primary w-full">Check Permission</button>
+                </form>
+                <div id="has-permission-result" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+            <!-- Can Check -->
+            <div class="bg-gray-50 p-4 rounded-md shadow-inner">
+                <h3 class="font-semibold text-lg mb-3 text-gray-700">Can Perform Action on Resource?</h3>
+                <form id="can-form" class="space-y-3">
+                    <input type="text" id="can-user-id" placeholder="User ID" class="input-field" required>
+                    <input type="text" id="can-resource" placeholder="Resource (e.g., /documents/123)" class="input-field" required>
+                    <input type="text" id="can-action" placeholder="Action (e.g., view, edit)" class="input-field" required>
+                    <button type="submit" class="btn btn-primary w-full">Check Can</button>
+                </form>
+                <div id="can-result" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE_URL = `${window.location.protocol}//${window.location.host}` // Your Go server address
+
+    // Helper to show/hide loading spinner
+    function showLoading() { document.getElementById('loading-spinner').classList.remove('hidden'); }
+    function hideLoading() { document.getElementById('loading-spinner').classList.add('hidden'); }
+
+    // Helper to display global messages (success/error)
+    function showGlobalMessage(message, type = 'success') {
+        const msgBox = document.getElementById('global-message');
+        msgBox.textContent = message;
+        msgBox.classList.remove('hidden', 'message-success', 'message-error');
+        if (type === 'success') {
+            msgBox.classList.add('message-success');
+        } else {
+            msgBox.classList.add('message-error');
+        }
+        setTimeout(() => { msgBox.classList.add('hidden'); }, 5000); // Hide after 5 seconds
+    }
+
+    // --- API Call Helpers ---
+    async function fetchData(urlPath, method = 'GET', data = null) {
+        showLoading();
+        try {
+            // Use URL constructor for robust URL concatenation
+            const url = new URL(urlPath, API_BASE_URL).href;
+            console.log("Fetching URL:", url); // Log the constructed URL for debugging
+
+            const options = { method };
+            if (data) {
+                options.headers = { 'Content-Type': 'application/json' };
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(url, options);
+            const responseData = await response.json(); // Always try to parse JSON
+            if (!response.ok) {
+                throw new Error(responseData.error || `HTTP error! Status: ${response.status}`);
+            }
+            showGlobalMessage(responseData.message || 'Operation successful!', 'success');
+            return responseData;
+        } catch (error) {
+            showGlobalMessage(`Error: ${error.message}`, 'error');
+            console.error('API Error:', error);
+            throw error; // Re-throw to allow specific error handling in calling functions
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // --- Data Listing Functions ---
+
+    async function listUsers() {
+        try {
+            // IMPORTANT: These '/users/get-all', '/roles/get-all', '/permissions/get-all'
+            // endpoints are assumed. You need to implement them in your Go server
+            // if they don't already exist, to fetch all entities for listing.
+            const users = await fetchData('/users/get-all');
+            const tableBody = document.getElementById('users-table-body');
+            tableBody.innerHTML = '';
+            if (users && users.length > 0) {
+                users.forEach(user => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = user.id;
+                    row.insertCell().textContent = user.name;
+                });
+            } else {
+                const row = tableBody.insertRow();
+                row.insertCell().colSpan = 2;
+                row.insertCell().textContent = 'No users found.';
+            }
+        } catch (error) {
+            // Error handled by fetchData
+        }
+    }
+
+    async function listRoles() {
+        try {
+            const roles = await fetchData('/roles/get-all');
+            const tableBody = document.getElementById('roles-table-body');
+            tableBody.innerHTML = '';
+            if (roles && roles.length > 0) {
+                roles.forEach(role => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = role.id;
+                    row.insertCell().textContent = role.name;
+                });
+            } else {
+                const row = tableBody.insertRow();
+                row.insertCell().colSpan = 2;
+                row.insertCell().textContent = 'No roles found.';
+            }
+        } catch (error) {
+            // Error handled by fetchData
+        }
+    }
+
+    async function listPermissions() {
+        try {
+            const permissions = await fetchData('/permissions/get-all');
+            const tableBody = document.getElementById('permissions-table-body');
+            tableBody.innerHTML = '';
+            if (permissions && permissions.length > 0) {
+                permissions.forEach(perm => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = perm.id;
+                    row.insertCell().textContent = perm.name;
+                    row.insertCell().textContent = perm.resource;
+                    row.insertCell().textContent = perm.action;
+                });
+            } else {
+                const row = tableBody.insertRow();
+                row.insertCell().colSpan = 4;
+                row.insertCell().textContent = 'No permissions found.';
+            }
+        } catch (error) {
+            // Error handled by fetchData
+        }
+    }
+
+    // --- Event Listeners for Forms and Buttons ---
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initial load of data
+        listUsers();
+        listRoles();
+        listPermissions();
+
+        // Refresh buttons
+        document.getElementById('list-users-btn').addEventListener('click', listUsers);
+        document.getElementById('list-roles-btn').addEventListener('click', listRoles);
+        document.getElementById('list-permissions-btn').addEventListener('click', listPermissions);
+
+        // User Forms
+        document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('create-user-id').value;
+            const name = document.getElementById('create-user-name').value;
+            try {
+                await fetchData('/users/create', 'POST', { id, name });
+                listUsers(); // Refresh list after creation
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('delete-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('delete-user-id').value;
+            try {
+                await fetchData(`/users/delete?id=${id}`, 'DELETE');
+                listUsers();
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('get-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('get-user-id').value;
+            const resultDiv = document.getElementById('get-user-result');
+            resultDiv.textContent = '';
+            try {
+                const user = await fetchData(`/users/get?id=${id}`);
+                resultDiv.textContent = `ID: ${user.id}, Name: ${user.name}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600'); // Add red text for errors
+            }
+        });
+
+        // Role Forms
+        document.getElementById('create-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('create-role-id').value;
+            const name = document.getElementById('create-role-name').value;
+            try {
+                await fetchData('/roles/create', 'POST', { id, name });
+                listRoles();
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('delete-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('delete-role-id').value;
+            try {
+                await fetchData(`/roles/delete?id=${id}`, 'DELETE');
+                listRoles();
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('get-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('get-role-id').value;
+            const resultDiv = document.getElementById('get-role-result');
+            resultDiv.textContent = '';
+            try {
+                const role = await fetchData(`/roles/get?id=${id}`);
+                resultDiv.textContent = `ID: ${role.id}, Name: ${role.name}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // Permission Forms
+        document.getElementById('create-permission-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('create-permission-id').value;
+            const name = document.getElementById('create-permission-name').value;
+            const resource = document.getElementById('create-permission-resource').value;
+            const action = document.getElementById('create-permission-action').value;
+            try {
+                await fetchData('/permissions/create', 'POST', { id, name, resource, action });
+                listPermissions();
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('delete-permission-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('delete-permission-id').value;
+            try {
+                await fetchData(`/permissions/delete?id=${id}`, 'DELETE');
+                listPermissions();
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('get-permission-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('get-permission-id').value;
+            const resultDiv = document.getElementById('get-permission-result');
+            resultDiv.textContent = '';
+            try {
+                const perm = await fetchData(`/permissions/get?id=${id}`);
+                resultDiv.textContent = `ID: ${perm.id}, Name: ${perm.name}, Resource: ${perm.resource}, Action: ${perm.action}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // User-Role Management Forms
+        document.getElementById('assign-role-to-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('assign-user-id-ur').value;
+            const role_id = document.getElementById('assign-role-id-ur').value;
+            try {
+                await fetchData('/users/assign-role', 'POST', { user_id, role_id });
+                e.target.reset();
+            }
+            catch (error) {}
+        });
+
+        document.getElementById('unassign-role-from-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('unassign-user-id-ur').value;
+            const role_id = document.getElementById('unassign-role-id-ur').value;
+            try {
+                await fetchData('/users/unassign-role', 'POST', { user_id, role_id });
+                e.target.reset();
+            }
+            catch (error) {}
+        });
+
+        document.getElementById('list-roles-for-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('list-roles-user-id').value;
+            const resultDiv = document.getElementById('list-roles-for-user-result');
+            resultDiv.textContent = '';
+            try {
+                const roles = await fetchData(`/users/list-roles?user_id=${user_id}`);
+                resultDiv.textContent = `Roles: ${roles.join(', ') || 'None'}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // Role-Permission Management Forms
+        document.getElementById('assign-permission-to-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const role_id = document.getElementById('assign-role-id-rp').value;
+            const perm_id = document.getElementById('assign-perm-id-rp').value;
+            try {
+                await fetchData('/permissions/assign-to-role', 'POST', { role_id, perm_id });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('remove-permission-from-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const role_id = document.getElementById('remove-role-id-rp').value;
+            const perm_id = document.getElementById('remove-perm-id-rp').value;
+            try {
+                await fetchData('/permissions/remove-from-role', 'POST', { role_id, perm_id });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('list-permissions-for-role-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const role_id = document.getElementById('list-perms-role-id').value;
+            const resultDiv = document.getElementById('list-permissions-for-role-result');
+            resultDiv.textContent = '';
+            try {
+                const permissions = await fetchData(`/permissions/list-for-role?role_id=${role_id}`);
+                resultDiv.textContent = `Permissions: ${permissions.join(', ') || 'None'}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // User-Group Management Forms
+        document.getElementById('add-user-to-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('add-ug-group-id').value;
+            const user_id = document.getElementById('add-ug-user-id').value;
+            const group_name = document.getElementById('add-ug-group-name').value;
+            try {
+                await fetchData('/users/add-to-group', 'POST', { group_id, user_id, group_name });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('remove-user-from-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('remove-ug-group-id').value;
+            const user_id = document.getElementById('remove-ug-user-id').value;
+            const group_name = document.getElementById('remove-ug-group-name').value;
+            try {
+                await fetchData('/users/remove-from-group', 'POST', { group_id, user_id, group_name });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('list-users-by-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('list-ug-group-id').value;
+            const resultDiv = document.getElementById('list-users-by-group-result');
+            resultDiv.textContent = '';
+            try {
+                const users = await fetchData(`/users/list-by-group?group_id=${group_id}`);
+                const userList = users.map(ug => `${ug.user_id} (Group: ${ug.group_name})`).join(', ') || 'None';
+                resultDiv.textContent = `Users in Group: ${userList}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        document.getElementById('list-groups-by-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('list-gru-user-id').value;
+            const resultDiv = document.getElementById('list-groups-by-user-result');
+            resultDiv.textContent = '';
+            try {
+                const groups = await fetchData(`/users/list-groups?user_id=${user_id}`);
+                const groupList = groups.map(ug => `${ug.group_name} (User: ${ug.user_id})`).join(', ') || 'None';
+                resultDiv.textContent = `Groups for User: ${groupList}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // Group-Role Management Forms
+        document.getElementById('assign-role-to-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('assign-gr-group-id').value;
+            const role_id = document.getElementById('assign-gr-role-id').value;
+            try {
+                await fetchData('/roles/assign-to-group', 'POST', { group_id, role_id });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('unassign-role-from-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('unassign-gr-group-id').value;
+            const role_id = document.getElementById('unassign-gr-role-id').value;
+            try {
+                await fetchData('/roles/unassign-from-group', 'POST', { group_id, role_id });
+                e.target.reset();
+            } catch (error) {}
+        });
+
+        document.getElementById('list-roles-for-group-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const group_id = document.getElementById('list-gr-group-id').value;
+            const resultDiv = document.getElementById('list-roles-for-group-result');
+            resultDiv.textContent = '';
+            try {
+                const roles = await fetchData(`/roles/list-for-group?group_id=${group_id}`);
+                resultDiv.textContent = `Roles in Group: ${roles.join(', ') || 'None'}`;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        // Authorization Checks Forms
+        document.getElementById('has-permission-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('has-perm-user-id').value;
+            const perm_id = document.getElementById('has-perm-perm-id').value;
+            const resultDiv = document.getElementById('has-permission-result');
+            resultDiv.textContent = '';
+            try {
+                const response = await fetchData(`/users/has-permission?user_id=${user_id}&perm_id=${perm_id}`);
+                resultDiv.textContent = `Has Permission: ${response.has_permission ? 'Yes' : 'No'}`;
+                resultDiv.classList.remove('text-red-600', 'text-green-600');
+                resultDiv.classList.add(response.has_permission ? 'text-green-600' : 'text-red-600');
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        document.getElementById('can-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user_id = document.getElementById('can-user-id').value;
+            const resource = document.getElementById('can-resource').value;
+            const action = document.getElementById('can-action').value;
+            const resultDiv = document.getElementById('can-result');
+            resultDiv.textContent = '';
+            try {
+                const response = await fetchData('/users/can', 'POST', { user_id, resource, action });
+                resultDiv.textContent = `Can Perform Action: ${response.can_perform_action ? 'Yes' : 'No'}`;
+                resultDiv.classList.remove('text-red-600', 'text-green-600');
+                resultDiv.classList.add(response.can_perform_action ? 'text-green-600' : 'text-red-600');
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+    });
+</script>
+</body>
+</html>

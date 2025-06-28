@@ -74,6 +74,7 @@ type RoleRepo interface {
 	DeleteRole(ctx context.Context, id string) error
 	GetRoleByID(ctx context.Context, id string) (*Role, error)
 	GetRoleByName(ctx context.Context, name string) (*Role, error)
+	ListAllRoles(ctx context.Context) ([]*Role, error)
 }
 
 type UserRepo interface {

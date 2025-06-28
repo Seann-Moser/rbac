@@ -476,3 +476,29 @@ func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, er
 	}
 	return out, nil
 }
+
+func (m *MongoStore) ListAllRoles(ctx context.Context) (r []*Role, err error) {
+	var doc struct {
+		Id          string `bson:"_id"`
+		Name        string
+		Description string
+		CreatedAt   int64 `bson:"created_at"`
+	}
+
+	cur, err := m.rolesCol.Find(ctx, bson.M{})
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for cur.Next(ctx) {
+		err = cur.Decode(&doc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode role")
+		}
+		r = append(r, &Role{ID: doc.Id, Name: doc.Name, Description: doc.Description, CreatedAt: doc.CreatedAt})
+	}
+	return r, nil
+}
