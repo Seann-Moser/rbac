@@ -5,8 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
+
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -386,17 +387,13 @@ func (m *MongoStore) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) {
-	oid, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, err
-	}
 	var doc struct {
 		Username  string
 		Email     string
 		Meta      map[string]interface{}
 		CreatedAt int64 `bson:"created_at"`
 	}
-	err = m.usersCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
+	err := m.usersCol.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -404,21 +401,36 @@ func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) 
 }
 
 func (m *MongoStore) AddRP(ctx context.Context, roleID, permID string) error {
-	rOID, _ := primitive.ObjectIDFromHex(roleID)
-	pOID, _ := primitive.ObjectIDFromHex(permID)
-	_, err := m.rolePermCol.InsertOne(ctx, bson.M{"role_id": rOID, "permission_id": pOID, "created_at": time.Now().Unix()})
+	rOID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return err
+	}
+	pOID, err := primitive.ObjectIDFromHex(permID)
+	if err != nil {
+		return err
+	}
+	_, err = m.rolePermCol.InsertOne(ctx, bson.M{"role_id": rOID, "permission_id": pOID, "created_at": time.Now().Unix()})
 	return err
 }
 
 func (m *MongoStore) Remove(ctx context.Context, roleID, permID string) error {
-	rOID, _ := primitive.ObjectIDFromHex(roleID)
-	pOID, _ := primitive.ObjectIDFromHex(permID)
-	_, err := m.rolePermCol.DeleteOne(ctx, bson.M{"role_id": rOID, "permission_id": pOID})
+	rOID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return err
+	}
+	pOID, err := primitive.ObjectIDFromHex(permID)
+	if err != nil {
+		return err
+	}
+	_, err = m.rolePermCol.DeleteOne(ctx, bson.M{"role_id": rOID, "permission_id": pOID})
 	return err
 }
 
 func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]string, error) {
-	rOID, _ := primitive.ObjectIDFromHex(roleID)
+	rOID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return nil, err
+	}
 	cur, err := m.rolePermCol.Find(ctx, bson.M{"role_id": rOID})
 	if err != nil {
 		return nil, err
@@ -440,22 +452,25 @@ func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 // --- UserRoleRepo ---
 
 func (m *MongoStore) AddUR(ctx context.Context, userID, roleID string) error {
-	uOID, _ := primitive.ObjectIDFromHex(userID)
-	rOID, _ := primitive.ObjectIDFromHex(roleID)
-	_, err := m.userRoleCol.InsertOne(ctx, bson.M{"user_id": uOID, "role_id": rOID, "assigned_at": time.Now().Unix()})
+	rOID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return err
+	}
+	_, err = m.userRoleCol.InsertOne(ctx, bson.M{"user_id": userID, "role_id": rOID, "assigned_at": time.Now().Unix()})
 	return err
 }
 
 func (m *MongoStore) RemoveUR(ctx context.Context, userID, roleID string) error {
-	uOID, _ := primitive.ObjectIDFromHex(userID)
-	rOID, _ := primitive.ObjectIDFromHex(roleID)
-	_, err := m.userRoleCol.DeleteOne(ctx, bson.M{"user_id": uOID, "role_id": rOID})
+	rOID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return err
+	}
+	_, err = m.userRoleCol.DeleteOne(ctx, bson.M{"user_id": userID, "role_id": rOID})
 	return err
 }
 
 func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, error) {
-	uOID, _ := primitive.ObjectIDFromHex(userID)
-	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": uOID})
+	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		return nil, err
 	}
