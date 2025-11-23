@@ -197,7 +197,7 @@ func (m *MongoStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*U
 func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 	// Permissions: unique(resource, action)
 	_, err := m.permsCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"resource", 1}, {"action", 1}},
+		Keys:    bson.D{{"resource", 1}, {"action", 1}}, //nolint:govet
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -206,7 +206,7 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 
 	// Roles: unique(name)
 	_, err = m.rolesCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"name", 1}},
+		Keys:    bson.D{{"name", 1}}, //nolint:govet
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -215,8 +215,8 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 
 	// Users: unique(username), unique(email)
 	for _, idx := range []mongo.IndexModel{
-		{Keys: bson.D{{"username", 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{"email", 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{"username", 1}}, Options: options.Index().SetUnique(true)}, //nolint:govet
+		{Keys: bson.D{{"email", 1}}, Options: options.Index().SetUnique(true)},    //nolint:govet
 	} {
 		if _, err = m.usersCol.Indexes().CreateOne(ctx, idx); err != nil {
 			return err
@@ -225,7 +225,7 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 
 	// Role permissions: unique(role_id, permission_id)
 	_, err = m.rolePermCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"role_id", 1}, {"permission_id", 1}},
+		Keys:    bson.D{{"role_id", 1}, {"permission_id", 1}}, //nolint:govet
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -234,7 +234,7 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 
 	// User roles: unique(user_id, role_id)
 	_, err = m.userRoleCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"user_id", 1}, {"role_id", 1}},
+		Keys:    bson.D{{"user_id", 1}, {"role_id", 1}}, //nolint:govet
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
