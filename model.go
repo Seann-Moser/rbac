@@ -33,32 +33,32 @@ func HTTPMethodToAction(method string) Action {
 }
 
 type Permission struct {
-	ID        string
-	Resource  string
-	Action    Action
-	CreatedAt int64
+	ID        string `bson:"id" json:"id,omitempty"`
+	Resource  string `bson:"resource" json:"resource,omitempty"`
+	Action    Action `bson:"action" json:"action,omitempty"`
+	CreatedAt int64  `bson:"created_at" json:"created_at,omitempty"`
 }
 
 type Role struct {
-	ID          string
-	Name        string
-	Description string
-	CreatedAt   int64
+	ID          string `bson:"id" json:"id,omitempty"`
+	Name        string `bson:"name" json:"name,omitempty"`
+	Description string `bson:"description" json:"description,omitempty"`
+	CreatedAt   int64  `bson:"created_at" json:"created_at,omitempty"`
 }
 
 type User struct {
-	ID        string
-	Username  string
-	Email     string
-	Meta      map[string]interface{}
-	CreatedAt int64
+	ID        string                 `bson:"id" json:"id,omitempty"`
+	Username  string                 `bson:"username" json:"username,omitempty"`
+	Email     string                 `bson:"email" json:"email,omitempty"`
+	Meta      map[string]interface{} `bson:"meta" json:"meta,omitempty"`
+	CreatedAt int64                  `bson:"created_at" json:"created_at,omitempty"`
 }
 
 type UserGroup struct {
-	ID        string
-	GroupName string
-	UserID    string
-	CreatedAt int64
+	ID        string `bson:"id" json:"id,omitempty"`
+	GroupName string `bson:"group_name" json:"group_name,omitempty"`
+	UserID    string `bson:"user_id" json:"user_id,omitempty"`
+	CreatedAt int64  `bson:"created_at" json:"created_at,omitempty"`
 }
 
 // Repository interfaces, storage-agnostic

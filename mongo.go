@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -17,69 +17,30 @@ import (
 // ---------- Helper Conversion ----------
 //
 
-func oidToHex(oid primitive.ObjectID) string {
-	return oid.Hex()
-}
-
-func hexToOID(id string) (primitive.ObjectID, error) {
-	return primitive.ObjectIDFromHex(id)
-}
-
 //
 // ---------- Mongo DB Models ----------
 //
 
 // Permissions
-type mongoPermission struct {
-	ID        primitive.ObjectID `bson:"_id"`
-	Resource  string             `bson:"resource"`
-	Action    string             `bson:"action"`
-	CreatedAt int64              `bson:"created_at"`
-}
-
-// Roles
-type mongoRole struct {
-	ID          primitive.ObjectID `bson:"_id"`
-	Name        string             `bson:"name"`
-	Description string             `bson:"description"`
-	CreatedAt   int64              `bson:"created_at"`
-}
-
-// Users
-type mongoUser struct {
-	ID        primitive.ObjectID     `bson:"_id"`
-	Username  string                 `bson:"username"`
-	Email     string                 `bson:"email"`
-	Meta      map[string]interface{} `bson:"meta"`
-	CreatedAt int64                  `bson:"created_at"`
-}
-
-// User Groups
-type mongoUserGroup struct {
-	ID        primitive.ObjectID `bson:"_id"`
-	UserID    primitive.ObjectID `bson:"user_id"`
-	GroupName string             `bson:"group_name"`
-	CreatedAt int64              `bson:"created_at"`
-}
 
 // Role → Permission mapping
 type mongoRolePermission struct {
-	RoleID       primitive.ObjectID `bson:"role_id"`
-	PermissionID primitive.ObjectID `bson:"permission_id"`
-	CreatedAt    int64              `bson:"created_at"`
+	RoleID       string `bson:"role_id"`
+	PermissionID string `bson:"permission_id"`
+	CreatedAt    int64  `bson:"created_at"`
 }
 
 // User → Role mapping
 type mongoUserRole struct {
-	UserID     primitive.ObjectID `bson:"user_id"`
-	RoleID     primitive.ObjectID `bson:"role_id"`
-	AssignedAt int64              `bson:"assigned_at"`
+	UserID     string `bson:"user_id"`
+	RoleID     string `bson:"role_id"`
+	AssignedAt int64  `bson:"assigned_at"`
 }
 
 // Group → Role mapping
 type mongoGroupRole struct {
-	GroupName string `bson:"groupname"`
-	RoleID    string `bson:"roleid"`
+	GroupName string `bson:"group_name"`
+	RoleID    string `bson:"role_id"`
 	CreatedAt int64  `bson:"created_at"` // Added for consistency, though not strictly required
 }
 
@@ -156,7 +117,7 @@ func NewMongoStoreManager(ctx context.Context, db *mongo.Database) (*Manager, er
 // --- UserRepo ---
 
 func (m *MongoStore) GetUserByMeta(ctx context.Context, meta map[string]interface{}) (*User, error) {
-	var doc mongoUser
+	var doc User
 	err := m.usersCol.FindOne(ctx, meta).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
@@ -165,17 +126,11 @@ func (m *MongoStore) GetUserByMeta(ctx context.Context, meta map[string]interfac
 		return nil, err
 	}
 
-	return &User{
-		ID:        oidToHex(doc.ID),
-		Username:  doc.Username,
-		Email:     doc.Email,
-		CreatedAt: doc.CreatedAt,
-		Meta:      doc.Meta,
-	}, nil
+	return &doc, nil
 }
 
 func (m *MongoStore) GetPermissionByResource(ctx context.Context, resource string, action Action) (*Permission, error) {
-	var doc mongoPermission
+	var doc Permission
 	err := m.permsCol.FindOne(ctx, bson.M{"resource": resource, "action": string(action)}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
@@ -183,16 +138,12 @@ func (m *MongoStore) GetPermissionByResource(ctx context.Context, resource strin
 	if err != nil {
 		return nil, err
 	}
-	return &Permission{ID: doc.ID.Hex(), Resource: doc.Resource, Action: action, CreatedAt: doc.CreatedAt}, nil
+	return &doc, nil
 }
 
 func (m *MongoStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*UserGroup, error) {
-	uOID, err := hexToOID(userID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %w", err)
-	}
 
-	filter := bson.M{"user_id": uOID}
+	filter := bson.M{"user_id": userID}
 	cur, err := m.userGroupCol.Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -201,16 +152,11 @@ func (m *MongoStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*U
 
 	var out []*UserGroup
 	for cur.Next(ctx) {
-		var doc mongoUserGroup
+		var doc UserGroup
 		if err := cur.Decode(&doc); err != nil {
 			return nil, err
 		}
-		out = append(out, &UserGroup{
-			ID:        doc.ID.Hex(),
-			UserID:    doc.UserID.Hex(),
-			GroupName: doc.GroupName,
-			CreatedAt: doc.CreatedAt,
-		})
+		out = append(out, &doc)
 	}
 	return out, cur.Err()
 }
@@ -266,9 +212,8 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 		return err
 	}
 
-	// Group roles: unique(groupname, roleid)
 	_, err = m.groupRoleCol.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{"groupname", 1}, {"roleid", 1}}, //nolint:govet
+		Keys:    bson.D{{"group_name", 1}, {"role_id", 1}}, //nolint:govet
 		Options: options.Index().SetUnique(true),
 	})
 	if err != nil {
@@ -280,7 +225,6 @@ func (m *MongoStore) EnsureIndexes(ctx context.Context) error {
 
 // AddRoleToGroup stores a (groupID,roleID) pair
 func (m *MongoStore) AddRoleToGroup(ctx context.Context, groupID, roleID string) error {
-	// Note: RoleID is stored as a string, not ObjectID, for consistency with groupID
 	doc := mongoGroupRole{
 		GroupName: groupID,
 		RoleID:    roleID,
@@ -293,15 +237,15 @@ func (m *MongoStore) AddRoleToGroup(ctx context.Context, groupID, roleID string)
 // RemoveRoleFromGroup deletes that pairing
 func (m *MongoStore) RemoveRoleFromGroup(ctx context.Context, groupID, roleID string) error {
 	_, err := m.groupRoleCol.DeleteOne(ctx, bson.M{
-		"groupname": groupID,
-		"roleid":    roleID,
+		"group_name": groupID,
+		"role_id":    roleID,
 	})
 	return err
 }
 
 // ListRolesForGroup returns all roleIDs for a given group
 func (m *MongoStore) ListRolesForGroup(ctx context.Context, groupID string) ([]string, error) {
-	cur, err := m.groupRoleCol.Find(ctx, bson.M{"groupname": groupID})
+	cur, err := m.groupRoleCol.Find(ctx, bson.M{"group_name": groupID})
 	if err != nil {
 		return nil, err
 	}
@@ -322,12 +266,8 @@ func (m *MongoStore) ListRolesForGroup(ctx context.Context, groupID string) ([]s
 
 // --- PermissionRepo ---
 func (m *MongoStore) GetPermissionByID(ctx context.Context, id string) (*Permission, error) {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid permission ID format: %w", err)
-	}
-	var doc mongoPermission
-	err = m.permsCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
+	var doc Permission
+	err := m.permsCol.FindOne(ctx, bson.M{"id": id}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -335,34 +275,20 @@ func (m *MongoStore) GetPermissionByID(ctx context.Context, id string) (*Permiss
 		return nil, err
 	}
 	// Use the Action enum directly on the Permission struct
-	return &Permission{ID: id, Resource: doc.Resource, Action: Action(doc.Action), CreatedAt: doc.CreatedAt}, nil
+	return &doc, nil
 }
 
 func (m *MongoStore) DeleteRole(ctx context.Context, id string) error {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return fmt.Errorf("invalid role ID format: %w", err)
-	}
-	_, err = m.rolesCol.DeleteOne(ctx, bson.M{"_id": oid})
+	_, err := m.rolesCol.DeleteOne(ctx, bson.M{"id": id})
 	return err
 }
 
 func (m *MongoStore) DeleteUser(ctx context.Context, id string) error {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
-	}
-	_, err = m.usersCol.DeleteOne(ctx, bson.M{"_id": oid})
+	_, err := m.usersCol.DeleteOne(ctx, bson.M{"id": id})
 	return err
 }
 
 func (m *MongoStore) ListAllRoles(ctx context.Context) (r []*Role, err error) {
-	var doc struct {
-		Id          primitive.ObjectID `bson:"_id"` // FIX: Use ObjectID for decoding
-		Name        string
-		Description string
-		CreatedAt   int64 `bson:"created_at"`
-	}
 
 	cur, err := m.rolesCol.Find(ctx, bson.M{})
 	if err != nil {
@@ -371,16 +297,12 @@ func (m *MongoStore) ListAllRoles(ctx context.Context) (r []*Role, err error) {
 	defer cur.Close(ctx)
 
 	for cur.Next(ctx) {
+		var doc Role
 		err = cur.Decode(&doc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode role: %w", err)
 		}
-		r = append(r, &Role{
-			ID:          oidToHex(doc.Id), // FIX: Convert ObjectID to hex string
-			Name:        doc.Name,
-			Description: doc.Description,
-			CreatedAt:   doc.CreatedAt,
-		})
+		r = append(r, &doc)
 	}
 	return r, cur.Err()
 }
@@ -396,28 +318,15 @@ func (m *MongoStore) CreatePermission(ctx context.Context, p *Permission) error 
 		return nil
 	}
 
-	oid := primitive.NewObjectID()
-	p.ID = oidToHex(oid)
+	p.ID = uuid.New().String()
 	p.CreatedAt = time.Now().Unix()
 
-	doc := mongoPermission{
-		ID:        oid,
-		Resource:  p.Resource,
-		Action:    string(p.Action),
-		CreatedAt: p.CreatedAt,
-	}
-
-	_, err := m.permsCol.InsertOne(ctx, doc)
+	_, err := m.permsCol.InsertOne(ctx, p)
 	return err
 }
 
 func (m *MongoStore) DeletePermission(ctx context.Context, id string) error {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return fmt.Errorf("invalid permission ID format: %w", err)
-	}
-
-	_, err = m.permsCol.DeleteOne(ctx, bson.M{"_id": oid})
+	_, err := m.permsCol.DeleteOne(ctx, bson.M{"id": id})
 	return err
 }
 
@@ -426,23 +335,15 @@ func (m *MongoStore) DeletePermission(ctx context.Context, id string) error {
 //
 
 func (m *MongoStore) CreateRole(ctx context.Context, r *Role) error {
-	oid := primitive.NewObjectID()
-	r.ID = oid.Hex()
+	r.ID = uuid.New().String()
 	r.CreatedAt = time.Now().Unix()
 
-	doc := mongoRole{
-		ID:          oid,
-		Name:        r.Name,
-		Description: r.Description,
-		CreatedAt:   r.CreatedAt,
-	}
-
-	_, err := m.rolesCol.InsertOne(ctx, doc)
+	_, err := m.rolesCol.InsertOne(ctx, r)
 	return err
 }
 
 func (m *MongoStore) GetRoleByName(ctx context.Context, name string) (*Role, error) {
-	var doc mongoRole
+	var doc Role
 	err := m.rolesCol.FindOne(ctx, bson.M{"name": name}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
@@ -451,22 +352,12 @@ func (m *MongoStore) GetRoleByName(ctx context.Context, name string) (*Role, err
 		return nil, err
 	}
 
-	return &Role{
-		ID:          oidToHex(doc.ID),
-		Name:        doc.Name,
-		Description: doc.Description,
-		CreatedAt:   doc.CreatedAt,
-	}, nil
+	return &doc, nil
 }
 
 func (m *MongoStore) GetRoleByID(ctx context.Context, id string) (*Role, error) {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	var doc mongoRole
-	err = m.rolesCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
+	var doc Role
+	err := m.rolesCol.FindOne(ctx, bson.M{"id": id}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -474,12 +365,7 @@ func (m *MongoStore) GetRoleByID(ctx context.Context, id string) (*Role, error) 
 		return nil, err
 	}
 
-	return &Role{
-		ID:          id,
-		Name:        doc.Name,
-		Description: doc.Description,
-		CreatedAt:   doc.CreatedAt,
-	}, nil
+	return &doc, nil
 }
 
 //
@@ -487,31 +373,18 @@ func (m *MongoStore) GetRoleByID(ctx context.Context, id string) (*Role, error) 
 //
 
 func (m *MongoStore) CreateUser(ctx context.Context, u *User) error {
-	oid := primitive.NewObjectID()
-
-	u.ID = oidToHex(oid)
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
 	u.CreatedAt = time.Now().Unix()
 
-	doc := mongoUser{
-		ID:        oid,
-		Username:  u.Username,
-		Email:     u.Email,
-		Meta:      u.Meta,
-		CreatedAt: u.CreatedAt,
-	}
-
-	_, err := m.usersCol.InsertOne(ctx, doc)
+	_, err := m.usersCol.InsertOne(ctx, u)
 	return err
 }
 
 func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) {
-	oid, err := hexToOID(id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %w", err) // FIX: Provide context on ID conversion failure
-	}
-
-	var doc mongoUser
-	err = m.usersCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
+	var doc User
+	err := m.usersCol.FindOne(ctx, bson.M{"id": id}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -519,13 +392,7 @@ func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) 
 		return nil, err
 	}
 
-	return &User{
-		ID:        id,
-		Username:  doc.Username,
-		Email:     doc.Email,
-		CreatedAt: doc.CreatedAt,
-		Meta:      doc.Meta,
-	}, nil
+	return &doc, nil
 }
 
 //
@@ -533,51 +400,27 @@ func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) 
 //
 
 func (m *MongoStore) AddRP(ctx context.Context, roleID, permID string) error {
-	rOID, err := hexToOID(roleID)
-	if err != nil {
-		return fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	pOID, err := hexToOID(permID)
-	if err != nil {
-		return fmt.Errorf("invalid permission ID format: %w", err)
-	}
 
 	doc := mongoRolePermission{
-		RoleID:       rOID,
-		PermissionID: pOID,
+		RoleID:       roleID,
+		PermissionID: permID,
 		CreatedAt:    time.Now().Unix(),
 	}
 
-	_, err = m.rolePermCol.InsertOne(ctx, doc)
+	_, err := m.rolePermCol.InsertOne(ctx, doc)
 	return err
 }
 
 func (m *MongoStore) Remove(ctx context.Context, roleID, permID string) error {
-	rOID, err := hexToOID(roleID)
-	if err != nil {
-		return fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	pOID, err := hexToOID(permID)
-	if err != nil {
-		return fmt.Errorf("invalid permission ID format: %w", err)
-	}
-
-	_, err = m.rolePermCol.DeleteOne(ctx, bson.M{
-		"role_id":       rOID,
-		"permission_id": pOID,
+	_, err := m.rolePermCol.DeleteOne(ctx, bson.M{
+		"role_id":       roleID,
+		"permission_id": permID,
 	})
 	return err
 }
 
 func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]string, error) {
-	rOID, err := hexToOID(roleID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	cur, err := m.rolePermCol.Find(ctx, bson.M{"role_id": rOID})
+	cur, err := m.rolePermCol.Find(ctx, bson.M{"role_id": roleID})
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +432,7 @@ func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 		if err := cur.Decode(&rec); err != nil {
 			return nil, err
 		}
-		out = append(out, rec.PermissionID.Hex())
+		out = append(out, rec.PermissionID)
 	}
 
 	return out, nil
@@ -600,54 +443,25 @@ func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 //
 
 func (m *MongoStore) AddUR(ctx context.Context, userID, roleID string) error {
-	uOID, err := hexToOID(userID)
-	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
-	}
-
-	rOID, err := hexToOID(roleID)
-	if err != nil {
-		return fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	_, err = m.userRoleCol.InsertOne(ctx, mongoUserRole{
-		UserID:     uOID,
-		RoleID:     rOID,
+	_, err := m.userRoleCol.InsertOne(ctx, mongoUserRole{
+		UserID:     userID,
+		RoleID:     roleID,
 		AssignedAt: time.Now().Unix(),
 	})
 	return err
 }
 
 func (m *MongoStore) RemoveUR(ctx context.Context, userID, roleID string) error {
-	uOID, err := hexToOID(userID)
-	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
-	}
-
-	rOID, err := hexToOID(roleID)
-	if err != nil {
-		return fmt.Errorf("invalid role ID format: %w", err)
-	}
-
-	_, err = m.userRoleCol.DeleteOne(ctx, bson.M{
-		"user_id": uOID,
-		"role_id": rOID,
+	_, err := m.userRoleCol.DeleteOne(ctx, bson.M{
+		"user_id": userID,
+		"role_id": roleID,
 	})
 	return err
 }
 
 func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, error) {
 	var out []string
-	uOID, err := hexToOID(userID)
-	if err != nil {
-		// always add default role
-		if r, _ := m.GetRoleByName(ctx, "default"); r != nil {
-			out = append(out, r.ID)
-		}
-		return out, fmt.Errorf("invalid user ID format: %w", err)
-	}
-
-	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": uOID})
+	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		// always add default role
 		if r, _ := m.GetRoleByName(ctx, "default"); r != nil {
@@ -662,7 +476,7 @@ func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, er
 		if err := cur.Decode(&rec); err != nil {
 			return nil, err
 		}
-		out = append(out, rec.RoleID.Hex())
+		out = append(out, rec.RoleID)
 	}
 
 	// always add default role
@@ -678,28 +492,14 @@ func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, er
 //AddUserToGroup
 
 func (m *MongoStore) AddUserToGroup(ctx context.Context, ug *UserGroup) error {
-
 	if ug.UserID == "" {
 		return errors.New("user id is empty")
 	}
 
-	uOID, err := hexToOID(ug.UserID)
-	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
-	}
-
-	oid := primitive.NewObjectID()
-	ug.ID = oid.Hex()
+	ug.ID = uuid.New().String()
 	ug.CreatedAt = time.Now().Unix()
 
-	doc := mongoUserGroup{
-		ID:        oid,
-		UserID:    uOID,
-		GroupName: ug.GroupName,
-		CreatedAt: ug.CreatedAt,
-	}
-
-	_, err = m.userGroupCol.InsertOne(ctx, doc)
+	_, err := m.userGroupCol.InsertOne(ctx, ug)
 	return err
 }
 
@@ -708,13 +508,8 @@ func (m *MongoStore) RemoveUserFromGroup(ctx context.Context, groupName string, 
 		return errors.New("user id is empty")
 	}
 
-	uOID, err := hexToOID(ug.UserID)
-	if err != nil {
-		return fmt.Errorf("invalid user ID format: %w", err)
-	}
-
-	_, err = m.userGroupCol.DeleteOne(ctx, bson.M{
-		"user_id":    uOID,
+	_, err := m.userGroupCol.DeleteOne(ctx, bson.M{
+		"user_id":    ug.UserID,
 		"group_name": groupName,
 	})
 	return err
@@ -729,17 +524,12 @@ func (m *MongoStore) GetUsersByGroupID(ctx context.Context, groupName string) ([
 
 	var out []*UserGroup
 	for cur.Next(ctx) {
-		var doc mongoUserGroup
+		var doc UserGroup
 		if err := cur.Decode(&doc); err != nil {
 			return nil, err
 		}
 
-		out = append(out, &UserGroup{
-			ID:        doc.ID.Hex(),
-			UserID:    doc.UserID.Hex(),
-			GroupName: doc.GroupName,
-			CreatedAt: doc.CreatedAt,
-		})
+		out = append(out, &doc)
 	}
 
 	return out, cur.Err()
