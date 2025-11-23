@@ -387,17 +387,29 @@ func (m *MongoStore) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (m *MongoStore) GetUserByID(ctx context.Context, id string) (*User, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
 	var doc struct {
 		Username  string
 		Email     string
 		Meta      map[string]interface{}
 		CreatedAt int64 `bson:"created_at"`
 	}
-	err := m.usersCol.FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
+
+	err = m.usersCol.FindOne(ctx, bson.M{"_id": oid}).Decode(&doc)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &User{ID: id, Username: doc.Username, Email: doc.Email, CreatedAt: doc.CreatedAt, Meta: doc.Meta}, nil
+	return &User{
+		ID:        id,
+		Username:  doc.Username,
+		Email:     doc.Email,
+		CreatedAt: doc.CreatedAt,
+		Meta:      doc.Meta,
+	}, nil
 }
 
 func (m *MongoStore) AddRP(ctx context.Context, roleID, permID string) error {
@@ -452,43 +464,66 @@ func (m *MongoStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 // --- UserRoleRepo ---
 
 func (m *MongoStore) AddUR(ctx context.Context, userID, roleID string) error {
+	uOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
+
 	rOID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
 		return err
 	}
-	_, err = m.userRoleCol.InsertOne(ctx, bson.M{"user_id": userID, "role_id": rOID, "assigned_at": time.Now().Unix()})
+
+	_, err = m.userRoleCol.InsertOne(ctx, bson.M{
+		"user_id":     uOID,
+		"role_id":     rOID,
+		"assigned_at": time.Now().Unix(),
+	})
 	return err
 }
 
 func (m *MongoStore) RemoveUR(ctx context.Context, userID, roleID string) error {
+	uOID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return err
+	}
 	rOID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
 		return err
 	}
-	_, err = m.userRoleCol.DeleteOne(ctx, bson.M{"user_id": userID, "role_id": rOID})
+
+	_, err = m.userRoleCol.DeleteOne(ctx, bson.M{"user_id": uOID, "role_id": rOID})
 	return err
 }
 
 func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, error) {
-	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": userID})
+	uOID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, err
 	}
+
+	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": uOID})
+	if err != nil {
+		return nil, err
+	}
+
 	var out []string
 	var rec struct {
 		RoleID primitive.ObjectID `bson:"role_id"`
 	}
+
 	for cur.Next(ctx) {
-		err = cur.Decode(&rec)
-		if err != nil {
+		if err := cur.Decode(&rec); err != nil {
 			return nil, fmt.Errorf("failed to decode role ID")
 		}
 		out = append(out, rec.RoleID.Hex())
 	}
-	r, _ := m.GetRoleByName(ctx, "default")
-	if r != nil {
+
+	// include default role
+	if r, _ := m.GetRoleByName(ctx, "default"); r != nil {
 		out = append(out, r.ID)
 	}
+
 	return out, nil
 }
 
