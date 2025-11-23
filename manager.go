@@ -273,22 +273,22 @@ func (m *Manager) Can(ctx context.Context, userID, resource string, action Actio
 	roles, err := m.UR.ListRoles(ctx, userID)
 	if err != nil {
 		m.record(ctx, start, "Can", err)
-		return false, err
+	} else if roles == nil {
+		roles = []string{}
 	}
 
 	// 2) collect groups this user belongs to
 	groups, err := m.UG.GetGroupsByUserID(ctx, userID)
 	if err != nil {
 		m.record(ctx, start, "Can", err)
-		return false, err
 	}
 	for _, ug := range groups {
 		grpRoles, err := m.GR.ListRolesForGroup(ctx, ug.GroupName)
 		if err != nil {
 			m.record(ctx, start, "Can", err)
-			return false, err
+		} else {
+			roles = append(roles, grpRoles...)
 		}
-		roles = append(roles, grpRoles...)
 	}
 
 	// 3) dedupe roles (optional)
@@ -299,13 +299,13 @@ func (m *Manager) Can(ctx context.Context, userID, resource string, action Actio
 		permIDs, err := m.RP.ListPermissions(ctx, roleID)
 		if err != nil {
 			m.record(ctx, start, "Can", err)
-			return false, err
+			continue
 		}
 		for _, pid := range permIDs {
 			perm, err := m.Perms.GetPermissionByID(ctx, pid)
 			if err != nil {
 				m.record(ctx, start, "Can", err)
-				return false, err
+				continue
 			}
 			if perm == nil {
 				continue

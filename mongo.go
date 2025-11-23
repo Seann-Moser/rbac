@@ -637,18 +637,26 @@ func (m *MongoStore) RemoveUR(ctx context.Context, userID, roleID string) error 
 }
 
 func (m *MongoStore) ListRoles(ctx context.Context, userID string) ([]string, error) {
+	var out []string
 	uOID, err := hexToOID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user ID format: %w", err)
+		// always add default role
+		if r, _ := m.GetRoleByName(ctx, "default"); r != nil {
+			out = append(out, r.ID)
+		}
+		return out, fmt.Errorf("invalid user ID format: %w", err)
 	}
 
 	cur, err := m.userRoleCol.Find(ctx, bson.M{"user_id": uOID})
 	if err != nil {
-		return nil, err
+		// always add default role
+		if r, _ := m.GetRoleByName(ctx, "default"); r != nil {
+			out = append(out, r.ID)
+		}
+		return out, err
 	}
 	defer cur.Close(ctx)
 
-	var out []string
 	for cur.Next(ctx) {
 		var rec mongoUserRole
 		if err := cur.Decode(&rec); err != nil {
