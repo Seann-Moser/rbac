@@ -2,8 +2,9 @@ package rbacServer
 
 import (
 	"encoding/json"
-	"github.com/Seann-Moser/rbac"
 	"net/http"
+
+	"github.com/Seann-Moser/rbac"
 )
 
 // CreateUserHandler handles creating a new user.
@@ -177,7 +178,7 @@ func (s *Server) AddUserToGroupHandler(w http.ResponseWriter, r *http.Request) {
 		GroupName: req.GroupName,
 	}
 
-	if err := s.RBACManager.AddUserToGroup(r.Context(), req.GroupID, ug); err != nil {
+	if err := s.RBACManager.AddUserToGroup(r.Context(), ug); err != nil {
 		writeErrorResponse(w, http.StatusInternalServerError, "Failed to add user to group", err)
 		return
 	}

@@ -153,9 +153,9 @@ func (m *Manager) ListRolesForUser(ctx context.Context, userID string) ([]string
 	return roles, err
 }
 
-func (m *Manager) AddUserToGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+func (m *Manager) AddUserToGroup(ctx context.Context, ug *UserGroup) error {
 	start := time.Now()
-	err := m.UG.AddUserToGroup(ctx, groupID, ug)
+	err := m.UG.AddUserToGroup(ctx, ug)
 	m.record(ctx, start, "AddUserToGroup", err)
 	return err
 }

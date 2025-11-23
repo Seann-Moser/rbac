@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -169,17 +170,17 @@ func (f *MockRepo) ListRoles(ctx context.Context, userID string) ([]string, erro
 }
 
 // UserGroupRepo implementation
-func (f *MockRepo) AddUserToGroup(ctx context.Context, groupID string, ug *UserGroup) error {
+func (f *MockRepo) AddUserToGroup(ctx context.Context, ug *UserGroup) error {
 	// by user
 	if f.userGroups[ug.UserID] == nil {
 		f.userGroups[ug.UserID] = make(map[string]*UserGroup)
 	}
-	f.userGroups[ug.UserID][groupID] = ug
+	f.userGroups[ug.UserID][ug.GroupName] = ug
 	// by group
-	if f.groupUsers[groupID] == nil {
-		f.groupUsers[groupID] = make(map[string]*UserGroup)
+	if f.groupUsers[ug.GroupName] == nil {
+		f.groupUsers[ug.GroupName] = make(map[string]*UserGroup)
 	}
-	f.groupUsers[groupID][ug.UserID] = ug
+	f.groupUsers[ug.GroupName][ug.UserID] = ug
 	return nil
 }
 func (f *MockRepo) RemoveUserFromGroup(ctx context.Context, groupID string, ug *UserGroup) error {

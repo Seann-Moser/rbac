@@ -85,7 +85,7 @@ type UserRepo interface {
 }
 
 type UserGroupRepo interface {
-	AddUserToGroup(ctx context.Context, id string, u *UserGroup) error
+	AddUserToGroup(ctx context.Context, u *UserGroup) error
 	RemoveUserFromGroup(ctx context.Context, id string, u *UserGroup) error
 	GetGroupsByUserID(ctx context.Context, id string) ([]*UserGroup, error)
 	GetUsersByGroupID(ctx context.Context, id string) ([]*UserGroup, error)
