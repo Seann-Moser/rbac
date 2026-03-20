@@ -74,7 +74,8 @@ func NewMySQLStoreManager(ctx context.Context, db *sql.DB) (*Manager, error) {
 // EnsureSchema creates all required tables if they don't exist.
 func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 	stmts := []string{
-		`CREATE TABLE IF NOT EXISTS permissions (
+		`CREATE SCHEMA IF NOT EXISTS rbacv2;`,
+		`CREATE TABLE IF NOT EXISTS rbacv2.permissions (
 			id          VARCHAR(36)  NOT NULL PRIMARY KEY,
 			resource    VARCHAR(255) NOT NULL,
 			action      VARCHAR(64)  NOT NULL,
@@ -82,7 +83,7 @@ func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 			CONSTRAINT uq_permissions_resource_action UNIQUE (resource, action)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS roles (
+		`CREATE TABLE IF NOT EXISTS rbacv2.roles (
 			id          VARCHAR(36)  NOT NULL PRIMARY KEY,
 			name        VARCHAR(255) NOT NULL,
 			description TEXT         NOT NULL,
@@ -90,7 +91,7 @@ func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 			CONSTRAINT uq_roles_name UNIQUE (name)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS users (
+		`CREATE TABLE IF NOT EXISTS rbacv2.users (
 			id          VARCHAR(36)  NOT NULL PRIMARY KEY,
 			username    VARCHAR(255) NOT NULL,
 			email       VARCHAR(255) NOT NULL,
@@ -99,21 +100,21 @@ func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 			CONSTRAINT uq_users_email    UNIQUE (email)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS role_permissions (
+		`CREATE TABLE IF NOT EXISTS rbacv2.role_permissions (
 			role_id       VARCHAR(36) NOT NULL,
 			permission_id VARCHAR(36) NOT NULL,
 			created_at    BIGINT      NOT NULL DEFAULT 0,
 			PRIMARY KEY (role_id, permission_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS user_roles (
+		`CREATE TABLE IF NOT EXISTS rbacv2.user_roles (
 			user_id     VARCHAR(36) NOT NULL,
 			role_id     VARCHAR(36) NOT NULL,
 			assigned_at BIGINT      NOT NULL DEFAULT 0,
 			PRIMARY KEY (user_id, role_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS user_groups (
+		`CREATE TABLE IF NOT EXISTS rbacv2.user_groups (
 			id          VARCHAR(36)  NOT NULL PRIMARY KEY,
 			user_id     VARCHAR(36)  NOT NULL,
 			group_name  VARCHAR(255) NOT NULL,
@@ -121,7 +122,7 @@ func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 			CONSTRAINT uq_user_groups UNIQUE (user_id, group_name)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
-		`CREATE TABLE IF NOT EXISTS group_roles (
+		`CREATE TABLE IF NOT EXISTS rbacv2.group_roles (
 			group_name  VARCHAR(255) NOT NULL,
 			role_id     VARCHAR(36)  NOT NULL,
 			created_at  BIGINT       NOT NULL DEFAULT 0,
@@ -143,7 +144,7 @@ func (s *MySQLStore) EnsureSchema(ctx context.Context) error {
 
 func (s *MySQLStore) GetUserByID(ctx context.Context, id string) (*User, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, username, email, created_at FROM users WHERE id = ?`, id)
+		`SELECT id, username, email, created_at FROM rbacv2.users WHERE id = ?`, id)
 
 	u := &User{}
 	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.CreatedAt)
@@ -173,7 +174,7 @@ func (s *MySQLStore) GetUserByMeta(ctx context.Context, meta map[string]interfac
 	}
 
 	query := fmt.Sprintf(
-		`SELECT id, username, email, created_at FROM users WHERE %s`,
+		`SELECT id, username, email, created_at FROM rbacv2.users WHERE %s`,
 		strings.Join(clauses, " AND "),
 	)
 
@@ -196,19 +197,19 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u *User) error {
 	u.CreatedAt = time.Now().Unix()
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (id, username, email, created_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO rbacv2.users (id, username, email, created_at) VALUES (?, ?, ?, ?)`,
 		u.ID, u.Username, u.Email, u.CreatedAt)
 	return err
 }
 
 func (s *MySQLStore) DeleteUser(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM rbacv2.users WHERE id = ?`, id)
 	return err
 }
 
 func (s *MySQLStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*UserGroup, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, user_id, group_name, created_at FROM user_groups WHERE user_id = ?`, userID)
+		`SELECT id, user_id, group_name, created_at FROM rbacv2.user_groups WHERE user_id = ?`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +232,7 @@ func (s *MySQLStore) GetGroupsByUserID(ctx context.Context, userID string) ([]*U
 
 func (s *MySQLStore) GetPermissionByID(ctx context.Context, id string) (*Permission, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, resource, action, created_at FROM permissions WHERE id = ?`, id)
+		`SELECT id, resource, action, created_at FROM rbacv2.permissions WHERE id = ?`, id)
 
 	p := &Permission{}
 	var action string
@@ -248,7 +249,7 @@ func (s *MySQLStore) GetPermissionByID(ctx context.Context, id string) (*Permiss
 
 func (s *MySQLStore) GetPermissionByResource(ctx context.Context, resource string, action Action) (*Permission, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, resource, action, created_at FROM permissions WHERE resource = ? AND action = ?`,
+		`SELECT id, resource, action, created_at FROM rbacv2.permissions WHERE resource = ? AND action = ?`,
 		resource, string(action))
 
 	p := &Permission{}
@@ -275,13 +276,13 @@ func (s *MySQLStore) CreatePermission(ctx context.Context, p *Permission) error 
 	p.CreatedAt = time.Now().Unix()
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO permissions (id, resource, action, created_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO rbacv2.permissions (id, resource, action, created_at) VALUES (?, ?, ?, ?)`,
 		p.ID, p.Resource, string(p.Action), p.CreatedAt)
 	return err
 }
 
 func (s *MySQLStore) DeletePermission(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM permissions WHERE id = ?`, id)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM rbacv2.permissions WHERE id = ?`, id)
 	return err
 }
 
@@ -294,14 +295,14 @@ func (s *MySQLStore) CreateRole(ctx context.Context, r *Role) error {
 	r.CreatedAt = time.Now().Unix()
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO roles (id, name, description, created_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO rbacv2.roles (id, name, description, created_at) VALUES (?, ?, ?, ?)`,
 		r.ID, r.Name, r.Description, r.CreatedAt)
 	return err
 }
 
 func (s *MySQLStore) GetRoleByName(ctx context.Context, name string) (*Role, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, created_at FROM roles WHERE name = ?`, name)
+		`SELECT id, name, description, created_at FROM rbacv2.roles WHERE name = ?`, name)
 
 	r := &Role{}
 	err := row.Scan(&r.ID, &r.Name, &r.Description, &r.CreatedAt)
@@ -316,7 +317,7 @@ func (s *MySQLStore) GetRoleByName(ctx context.Context, name string) (*Role, err
 
 func (s *MySQLStore) GetRoleByID(ctx context.Context, id string) (*Role, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, created_at FROM roles WHERE id = ?`, id)
+		`SELECT id, name, description, created_at FROM rbacv2.roles WHERE id = ?`, id)
 
 	r := &Role{}
 	err := row.Scan(&r.ID, &r.Name, &r.Description, &r.CreatedAt)
@@ -330,13 +331,13 @@ func (s *MySQLStore) GetRoleByID(ctx context.Context, id string) (*Role, error) 
 }
 
 func (s *MySQLStore) DeleteRole(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM roles WHERE id = ?`, id)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM rbacv2.roles WHERE id = ?`, id)
 	return err
 }
 
 func (s *MySQLStore) ListAllRoles(ctx context.Context) ([]*Role, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, description, created_at FROM roles`)
+		`SELECT id, name, description, created_at FROM rbacv2.roles`)
 	if err != nil {
 		return nil, err
 	}
@@ -359,21 +360,21 @@ func (s *MySQLStore) ListAllRoles(ctx context.Context) ([]*Role, error) {
 
 func (s *MySQLStore) AddRP(ctx context.Context, roleID, permID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at) VALUES (?, ?, ?)`,
+		`INSERT IGNORE INTO rbacv2.role_permissions (role_id, permission_id, created_at) VALUES (?, ?, ?)`,
 		roleID, permID, time.Now().Unix())
 	return err
 }
 
 func (s *MySQLStore) Remove(ctx context.Context, roleID, permID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM role_permissions WHERE role_id = ? AND permission_id = ?`,
+		`DELETE FROM rbacv2.role_permissions WHERE role_id = ? AND permission_id = ?`,
 		roleID, permID)
 	return err
 }
 
 func (s *MySQLStore) ListPermissions(ctx context.Context, roleID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT permission_id FROM role_permissions WHERE role_id = ?`, roleID)
+		`SELECT permission_id FROM rbacv2.role_permissions WHERE role_id = ?`, roleID)
 	if err != nil {
 		return nil, err
 	}
@@ -396,21 +397,21 @@ func (s *MySQLStore) ListPermissions(ctx context.Context, roleID string) ([]stri
 
 func (s *MySQLStore) AddUR(ctx context.Context, userID, roleID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT IGNORE INTO user_roles (user_id, role_id, assigned_at) VALUES (?, ?, ?)`,
+		`INSERT IGNORE INTO rbacv2.user_roles (user_id, role_id, assigned_at) VALUES (?, ?, ?)`,
 		userID, roleID, time.Now().Unix())
 	return err
 }
 
 func (s *MySQLStore) RemoveUR(ctx context.Context, userID, roleID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM user_roles WHERE user_id = ? AND role_id = ?`,
+		`DELETE FROM rbacv2.user_roles WHERE user_id = ? AND role_id = ?`,
 		userID, roleID)
 	return err
 }
 
 func (s *MySQLStore) ListRoles(ctx context.Context, userID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT role_id FROM user_roles WHERE user_id = ?`, userID)
+		`SELECT role_id FROM rbacv2.user_roles WHERE user_id = ?`, userID)
 
 	var out []string
 
@@ -454,7 +455,7 @@ func (s *MySQLStore) AddUserToGroup(ctx context.Context, ug *UserGroup) error {
 	ug.CreatedAt = time.Now().Unix()
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO user_groups (id, user_id, group_name, created_at) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO rbacv2.user_groups (id, user_id, group_name, created_at) VALUES (?, ?, ?, ?)`,
 		ug.ID, ug.UserID, ug.GroupName, ug.CreatedAt)
 	return err
 }
@@ -465,14 +466,14 @@ func (s *MySQLStore) RemoveUserFromGroup(ctx context.Context, groupName string, 
 	}
 
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM user_groups WHERE user_id = ? AND group_name = ?`,
+		`DELETE FROM rbacv2.user_groups WHERE user_id = ? AND group_name = ?`,
 		ug.UserID, groupName)
 	return err
 }
 
 func (s *MySQLStore) GetUsersByGroupID(ctx context.Context, groupName string) ([]*UserGroup, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, user_id, group_name, created_at FROM user_groups WHERE group_name = ?`, groupName)
+		`SELECT id, user_id, group_name, created_at FROM rbacv2.user_groups WHERE group_name = ?`, groupName)
 	if err != nil {
 		return nil, err
 	}
@@ -495,21 +496,21 @@ func (s *MySQLStore) GetUsersByGroupID(ctx context.Context, groupName string) ([
 
 func (s *MySQLStore) AddRoleToGroup(ctx context.Context, groupID, roleID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT IGNORE INTO group_roles (group_name, role_id, created_at) VALUES (?, ?, ?)`,
+		`INSERT IGNORE INTO rbacv2.group_roles (group_name, role_id, created_at) VALUES (?, ?, ?)`,
 		groupID, roleID, time.Now().Unix())
 	return err
 }
 
 func (s *MySQLStore) RemoveRoleFromGroup(ctx context.Context, groupID, roleID string) error {
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM group_roles WHERE group_name = ? AND role_id = ?`,
+		`DELETE FROM rbacv2.group_roles WHERE group_name = ? AND role_id = ?`,
 		groupID, roleID)
 	return err
 }
 
 func (s *MySQLStore) ListRolesForGroup(ctx context.Context, groupID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT role_id FROM group_roles WHERE group_name = ?`, groupID)
+		`SELECT role_id FROM rbacv2.group_roles WHERE group_name = ?`, groupID)
 	if err != nil {
 		return nil, err
 	}
